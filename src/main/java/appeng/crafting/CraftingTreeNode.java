@@ -37,6 +37,11 @@ import appeng.api.storage.data.IItemList;
 import appeng.core.Api;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 
+/**
+ * A crafting tree node is what represents a single requested stack in the crafting process.
+ * It can either be the top-level requested stack (slot is then -1, parent is null),
+ * or a stack used in a pattern (slot is then the position of this stack in the pattern, parent is the parent node).
+ */
 public class CraftingTreeNode {
 
     // what slot!
@@ -48,6 +53,7 @@ public class CraftingTreeNode {
     private final CraftingTreeProcess parent;
     private final World world;
     // what item is this?
+    // note: the count is not necessarily correct at construction time, it's set in request()
     private final IAEItemStack what;
     // what are the crafting patterns for this?
     private final ArrayList<CraftingTreeProcess> nodes = new ArrayList<>();
@@ -75,15 +81,16 @@ public class CraftingTreeNode {
         }
 
         for (final ICraftingPatternDetails details : cc.getCraftingFor(this.what,
-                this.parent == null ? null : this.parent.details, slot, this.world))// in
-        // order.
-        {
+                this.parent == null ? null : this.parent.details, slot, this.world)) {
             if (this.parent == null || this.parent.notRecursive(details)) {
                 this.nodes.add(new CraftingTreeProcess(cc, job, details, this, depth + 1));
             }
         }
     }
 
+    /**
+     * Return true if adding this pattern as a child would not cause recursion.
+     */
     boolean notRecursive(final ICraftingPatternDetails details) {
         Collection<IAEItemStack> o = details.getOutputs();
 
@@ -108,15 +115,18 @@ public class CraftingTreeNode {
         return this.parent.notRecursive(details);
     }
 
-    IAEItemStack request(final MECraftingInventory inv, long l, final IActionSource src)
+    IAEItemStack request(final MECraftingInventory inv, long requestedAmount, final IActionSource src)
             throws CraftBranchFailure, InterruptedException {
         this.job.handlePausing();
 
         final List<IAEItemStack> thingsUsed = new ArrayList<>();
 
-        this.what.setStackSize(l);
+        // First try to collect items from the inventory
+
+        this.what.setStackSize(requestedAmount);
         if (this.getSlot() >= 0 && this.parent != null && this.parent.details.isCraftable()) {
-            final Collection<IAEItemStack> itemList;
+            // Special case: if this is a crafting pattern and there is a parent, also try to use a substitute input.
+            final Collection<IAEItemStack> itemList; // All possible substitute inputs, and fuzzy matching stacks.
             final IItemList<IAEItemStack> inventoryList = inv.getItemList();
 
             if (this.parent.details.canSubstitute()) {
@@ -140,12 +150,13 @@ public class CraftingTreeNode {
                 if (this.parent.details.isValidItemForSlot(this.getSlot(),
                         fuzz.copy().setStackSize(1).createItemStack(), this.world)) {
                     fuzz = fuzz.copy();
-                    fuzz.setStackSize(l);
+                    fuzz.setStackSize(requestedAmount);
 
                     final IAEItemStack available = inv.extractItems(fuzz, Actionable.MODULATE, src);
 
                     if (available != null) {
                         if (!this.exhausted) {
+                            // TODO: what is this?
                             final IAEItemStack is = this.job.checkUse(available);
 
                             if (is != null) {
@@ -155,9 +166,9 @@ public class CraftingTreeNode {
                         }
 
                         this.bytes += available.getStackSize();
-                        l -= available.getStackSize();
+                        requestedAmount -= available.getStackSize();
 
-                        if (l == 0) {
+                        if (requestedAmount == 0) {
                             return available;
                         }
                     }
@@ -177,9 +188,9 @@ public class CraftingTreeNode {
                 }
 
                 this.bytes += available.getStackSize();
-                l -= available.getStackSize();
+                requestedAmount -= available.getStackSize();
 
-                if (l == 0) {
+                if (requestedAmount == 0) {
                     return available;
                 }
             }
@@ -187,7 +198,7 @@ public class CraftingTreeNode {
 
         if (this.canEmit) {
             final IAEItemStack wat = this.what.copy();
-            wat.setStackSize(l);
+            wat.setStackSize(requestedAmount);
 
             this.howManyEmitted = wat.getStackSize();
             this.bytes += wat.getStackSize();
@@ -200,20 +211,21 @@ public class CraftingTreeNode {
         if (this.nodes.size() == 1) {
             final CraftingTreeProcess pro = this.nodes.get(0);
 
-            while (pro.possible && l > 0) {
+            while (pro.possible && requestedAmount > 0) {
                 final IAEItemStack madeWhat = pro.getAmountCrafted(this.what);
 
-                pro.request(inv, pro.getTimes(l, madeWhat.getStackSize()), src);
+                pro.request(inv, pro.getTimes(requestedAmount, madeWhat.getStackSize()), src);
 
-                madeWhat.setStackSize(l);
+                // by now we have succeeded, as request throws an exception in case of failure
+                madeWhat.setStackSize(requestedAmount);
 
                 final IAEItemStack available = inv.extractItems(madeWhat, Actionable.MODULATE, src);
 
                 if (available != null) {
                     this.bytes += available.getStackSize();
-                    l -= available.getStackSize();
+                    requestedAmount -= available.getStackSize();
 
-                    if (l <= 0) {
+                    if (requestedAmount <= 0) {
                         return available;
                     }
                 } else {
@@ -223,22 +235,22 @@ public class CraftingTreeNode {
         } else if (this.nodes.size() > 1) {
             for (final CraftingTreeProcess pro : this.nodes) {
                 try {
-                    while (pro.possible && l > 0) {
-                        final MECraftingInventory subInv = new MECraftingInventory(inv, true, true, true);
+                    while (pro.possible && requestedAmount > 0) {
+                        final MECraftingInventory subInv = new MECraftingInventory(inv, true, true);
                         pro.request(subInv, 1, src);
 
-                        this.what.setStackSize(l);
+                        this.what.setStackSize(requestedAmount);
                         final IAEItemStack available = subInv.extractItems(this.what, Actionable.MODULATE, src);
 
                         if (available != null) {
                             if (!subInv.commit(src)) {
-                                throw new CraftBranchFailure(this.what, l);
+                                throw new CraftBranchFailure(this.what, requestedAmount);
                             }
 
                             this.bytes += available.getStackSize();
-                            l -= available.getStackSize();
+                            requestedAmount -= available.getStackSize();
 
-                            if (l <= 0) {
+                            if (requestedAmount <= 0) {
                                 return available;
                             }
                         } else {
@@ -252,10 +264,10 @@ public class CraftingTreeNode {
         }
 
         if (this.sim) {
-            this.missing += l;
-            this.bytes += l;
+            this.missing += requestedAmount;
+            this.bytes += requestedAmount;
             final IAEItemStack rv = this.what.copy();
-            rv.setStackSize(l);
+            rv.setStackSize(requestedAmount);
             return rv;
         }
 
@@ -265,7 +277,7 @@ public class CraftingTreeNode {
             this.used.add(o);
         }
 
-        throw new CraftBranchFailure(this.what, l);
+        throw new CraftBranchFailure(this.what, requestedAmount);
     }
 
     void dive(final CraftingJob job) {

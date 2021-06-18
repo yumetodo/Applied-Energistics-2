@@ -22,11 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import net.minecraft.inventory.CraftingInventory;
 import net.minecraft.item.ItemStack;
-import net.minecraft.world.World;
-import net.minecraft.world.server.ServerWorld;
-import net.minecraftforge.fml.hooks.BasicEventHooks;
 
 import appeng.api.config.Actionable;
 import appeng.api.networking.crafting.ICraftingGrid;
@@ -35,11 +31,14 @@ import appeng.api.networking.security.IActionSource;
 import appeng.api.storage.channels.IItemStorageChannel;
 import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IItemList;
-import appeng.container.ContainerNull;
 import appeng.core.Api;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.util.Platform;
 
+/**
+ * A crafting tree process is what represents a pattern in the crafting process.
+ * It has a parent node (its output), and a list of child nodes for its inputs.
+ */
 public class CraftingTreeProcess {
 
     private final CraftingTreeNode parent;
@@ -48,11 +47,12 @@ public class CraftingTreeProcess {
     private final Map<CraftingTreeNode, Long> nodes = new HashMap<>();
     private final int depth;
     boolean possible = true;
-    private World world;
     private long crafts = 0;
     private boolean containerItems;
+    /**
+     * If true, we perform this pattern by 1 at the time. This ensures that container items or outputs get reused when possible.
+     */
     private boolean limitQty;
-    private boolean fullSimulation;
     private long bytes = 0;
 
     public CraftingTreeProcess(final ICraftingGrid cc, final CraftingJob job, final ICraftingPatternDetails details,
@@ -61,49 +61,13 @@ public class CraftingTreeProcess {
         this.details = details;
         this.job = job;
         this.depth = depth;
-        final World world = job.getWorld();
 
         if (details.isCraftable()) {
             final IAEItemStack[] list = details.getSparseInputs();
 
-            final CraftingInventory ic = new CraftingInventory(new ContainerNull(), 3, 3);
-            final IAEItemStack[] is = details.getSparseInputs();
-            for (int x = 0; x < ic.getSizeInventory(); x++) {
-                ic.setInventorySlotContents(x, is[x] == null ? ItemStack.EMPTY : is[x].createItemStack());
-            }
+            updateLimitQty(true);
 
-            BasicEventHooks.firePlayerCraftingEvent(Platform.getPlayer((ServerWorld) world),
-                    details.getOutput(ic, world), ic);
-
-            for (int x = 0; x < ic.getSizeInventory(); x++) {
-                final ItemStack g = ic.getStackInSlot(x);
-                if (!g.isEmpty() && g.getCount() > 1) {
-                    this.fullSimulation = true;
-                }
-            }
-
-            for (final IAEItemStack part : details.getInputs()) {
-                final ItemStack g = part.createItemStack();
-
-                boolean isAnInput = false;
-                for (final IAEItemStack a : details.getOutputs()) {
-                    if (!g.isEmpty() && a != null && a.equals(g)) {
-                        isAnInput = true;
-                    }
-                }
-
-                if (isAnInput) {
-                    this.limitQty = true;
-                }
-
-                if (g.getItem().hasContainerItem(g)) {
-                    this.limitQty = this.containerItems = true;
-                }
-            }
-
-            final boolean complicated = false;
-
-            if (this.containerItems || complicated) {
+            if (this.containerItems) {
                 for (int x = 0; x < list.length; x++) {
                     final IAEItemStack part = list[x];
                     if (part != null) {
@@ -112,8 +76,8 @@ public class CraftingTreeProcess {
                     }
                 }
             } else {
-                // this is minor different then below, this slot uses the pattern, but kinda
-                // fudges it.
+                // this is minor different then below, this slot uses the pattern, but kinda fudges it.
+                // TODO: what is the difference?
                 for (final IAEItemStack part : details.getInputs()) {
                     for (int x = 0; x < list.length; x++) {
                         final IAEItemStack comparePart = list[x];
@@ -127,23 +91,35 @@ public class CraftingTreeProcess {
                 }
             }
         } else {
-            for (final IAEItemStack part : details.getInputs()) {
-                final ItemStack g = part.createItemStack();
-
-                boolean isAnInput = false;
-                for (final IAEItemStack a : details.getOutputs()) {
-                    if (!g.isEmpty() && a != null && a.equals(g)) {
-                        isAnInput = true;
-                    }
-                }
-
-                if (isAnInput) {
-                    this.limitQty = true;
-                }
-            }
+            updateLimitQty(false);
 
             for (final IAEItemStack part : details.getInputs()) {
                 this.nodes.put(new CraftingTreeNode(cc, job, part.copy(), this, -1, depth + 1), part.getStackSize());
+            }
+        }
+    }
+
+    /**
+     * Check if this pattern has one of its outputs as input. If that's the case, update {@code limitQty} to make sure
+     * we simulate this pattern one by one.
+     */
+    private void updateLimitQty(boolean checkContainerItems) {
+        for (final IAEItemStack part : details.getInputs()) {
+            final ItemStack g = part.createItemStack();
+
+            boolean isAnInput = false;
+            for (final IAEItemStack a : details.getOutputs()) {
+                if (!g.isEmpty() && a != null && a.equals(g)) {
+                    isAnInput = true;
+                }
+            }
+
+            if (isAnInput) {
+                this.limitQty = true;
+            }
+
+            if (checkContainerItems && g.getItem().hasContainerItem(g)) {
+                this.limitQty = this.containerItems = true;
             }
         }
     }
@@ -153,7 +129,7 @@ public class CraftingTreeProcess {
     }
 
     long getTimes(final long remaining, final long stackSize) {
-        if (this.limitQty || this.fullSimulation) {
+        if (this.limitQty) {
             return 1;
         }
         return remaining / stackSize + (remaining % stackSize != 0 ? 1 : 0);
@@ -163,23 +139,12 @@ public class CraftingTreeProcess {
             throws CraftBranchFailure, InterruptedException {
         this.job.handlePausing();
 
-        if (this.fullSimulation) {
-            final CraftingInventory ic = new CraftingInventory(new ContainerNull(), 3, 3);
+        // request and remove inputs...
+        for (final Entry<CraftingTreeNode, Long> entry : this.nodes.entrySet()) {
+            final IAEItemStack stack = entry.getKey().request(inv, entry.getValue() * i, src);
 
-            for (final Entry<CraftingTreeNode, Long> entry : this.nodes.entrySet()) {
-                final IAEItemStack item = entry.getKey().getStack(entry.getValue());
-                final IAEItemStack stack = entry.getKey().request(inv, item.getStackSize(), src);
-
-                ic.setInventorySlotContents(entry.getKey().getSlot(), stack.createItemStack());
-            }
-
-            BasicEventHooks.firePlayerCraftingEvent(Platform.getPlayer((ServerWorld) this.world),
-                    this.details.getOutput(ic, this.world), ic);
-
-            for (int x = 0; x < ic.getSizeInventory(); x++) {
-                ItemStack is = ic.getStackInSlot(x);
-                is = Platform.getContainerItem(is);
-
+            if (this.containerItems) {
+                final ItemStack is = Platform.getContainerItem(stack.createItemStack());
                 final IAEItemStack o = Api.instance().storage().getStorageChannel(IItemStorageChannel.class)
                         .createStack(is);
                 if (o != null) {
@@ -187,25 +152,9 @@ public class CraftingTreeProcess {
                     inv.injectItems(o, Actionable.MODULATE, src);
                 }
             }
-        } else {
-            // request and remove inputs...
-            for (final Entry<CraftingTreeNode, Long> entry : this.nodes.entrySet()) {
-                final IAEItemStack item = entry.getKey().getStack(entry.getValue());
-                final IAEItemStack stack = entry.getKey().request(inv, item.getStackSize() * i, src);
-
-                if (this.containerItems) {
-                    final ItemStack is = Platform.getContainerItem(stack.createItemStack());
-                    final IAEItemStack o = Api.instance().storage().getStorageChannel(IItemStorageChannel.class)
-                            .createStack(is);
-                    if (o != null) {
-                        this.bytes++;
-                        inv.injectItems(o, Actionable.MODULATE, src);
-                    }
-                }
-            }
         }
 
-        // assume its possible.
+        // by now we must have succeeded, otherwise an exception would have been thrown by request() above
 
         // add crafting results..
         for (final IAEItemStack out : this.details.getOutputs()) {
@@ -239,6 +188,7 @@ public class CraftingTreeProcess {
         for (final IAEItemStack is : this.details.getOutputs()) {
             if (is.getItem() == what2.getItem()
                     && (is.getItem().isDamageable() || is.getItemDamage() == what2.getItemDamage())) {
+                // TODO: this OR looks broken, investigate!
                 what2 = is.copy();
                 what2.setStackSize(is.getStackSize());
                 return what2;
