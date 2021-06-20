@@ -22,6 +22,10 @@ import appeng.api.networking.IGrid;
 import appeng.api.networking.IGridHost;
 import appeng.me.cache.CraftingGridCache;
 
+/**
+ * Connects the requester of a crafting job and the executing CPU by storing both crafting links. Only used by
+ * non-standalone (i.e. automatic) crafting jobs.
+ */
 public class CraftingLinkNexus {
 
     private final String craftID;
@@ -116,6 +120,7 @@ public class CraftingLinkNexus {
     }
 
     public boolean isMachine(final IGridHost machine) {
+        // TODO: always false?
         return this.getRequest() == machine;
     }
 

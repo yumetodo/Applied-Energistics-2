@@ -150,6 +150,9 @@ public class CraftingLink implements ICraftingLink {
         }
     }
 
+    /**
+     * Inject items into the requester of this job.
+     */
     public IAEItemStack injectItems(final IAEItemStack input, final Actionable mode) {
         if (this.tie == null || this.tie.getRequest() == null || this.tie.getRequest().getRequester() == null) {
             return input;

@@ -25,6 +25,8 @@ package appeng.api.networking.crafting;
 
 import java.util.concurrent.Future;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableSet;
 
@@ -79,7 +81,7 @@ public interface ICraftingGrid extends IGridCache {
      *         {@link ICraftingRequester} methods. if you send null, this object should be discarded after verifying the
      *         return state.
      */
-    ICraftingLink submitJob(ICraftingJob job, ICraftingRequester requestingMachine, ICraftingCPU target,
+    ICraftingLink submitJob(ICraftingJob job, @Nullable ICraftingRequester requestingMachine, ICraftingCPU target,
             boolean prioritizePower, IActionSource src);
 
     /**

@@ -38,30 +38,48 @@ import appeng.core.Api;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 
 /**
- * A crafting tree node is what represents a single requested stack in the crafting process.
- * It can either be the top-level requested stack (slot is then -1, parent is null),
- * or a stack used in a pattern (slot is then the position of this stack in the pattern, parent is the parent node).
+ * A crafting tree node is what represents a single requested stack in the crafting process. It can either be the
+ * top-level requested stack (slot is then -1, parent is null), or a stack used in a pattern (slot is then the position
+ * of this stack in the pattern, parent is the parent node).
  */
 public class CraftingTreeNode {
 
-    // what slot!
+    /**
+     * Stack of this node. Note: the count is not necessarily correct at construction time, it's set in request()
+     */
+    private final IAEItemStack what;
+    /**
+     * Parent process, or null for the top level node.
+     */
+    private final CraftingTreeProcess parent;
+    /**
+     * Child pattern nodes that can produce this stack.
+     */
+    private final ArrayList<CraftingTreeProcess> nodes = new ArrayList<>();
+    private final boolean canEmit;
+    /**
+     * Slot in the parent process, or -1 for the top level node.
+     */
     private final int slot;
     private final CraftingJob job;
-    private final IItemList<IAEItemStack> used = Api.instance().storage().getStorageChannel(IItemStorageChannel.class)
-            .createList();
-    // parent node.
-    private final CraftingTreeProcess parent;
     private final World world;
-    // what item is this?
-    // note: the count is not necessarily correct at construction time, it's set in request()
-    private final IAEItemStack what;
-    // what are the crafting patterns for this?
-    private final ArrayList<CraftingTreeProcess> nodes = new ArrayList<>();
+    /**
+     * List of things that need to be extracted from the network inventory when the job starts, for this node. This is a
+     * heuristic that sometimes extracts too many items. See also {@code leftoverNetworkInventory} in
+     * {@link CraftingJob}.
+     */
+    private final IItemList<IAEItemStack> usedNetworkItems = Api.instance().storage()
+            .getStorageChannel(IItemStorageChannel.class).createList();
+    /**
+     * True when extraction from the network is not possible anymore, to improve the heuristic.
+     */
+    private boolean exhausted = false;
+    // =====
+    // Result reporting
+    // =====
     private int bytes = 0;
-    private boolean canEmit = false;
     private long missing = 0;
     private long howManyEmitted = 0;
-    private boolean exhausted = false;
 
     private boolean sim;
 
@@ -108,21 +126,20 @@ public class CraftingTreeNode {
             }
         }
 
-        if (this.parent == null) {
-            return true;
-        }
-
-        return this.parent.notRecursive(details);
+        return this.parent == null || this.parent.notRecursive(details);
     }
 
     IAEItemStack request(final MECraftingInventory inv, long requestedAmount, final IActionSource src)
             throws CraftBranchFailure, InterruptedException {
         this.job.handlePausing();
 
-        final List<IAEItemStack> thingsUsed = new ArrayList<>();
+        // Lists the modifications that are done to {@code usedNetworkItems} during this request,
+        // so that they can be undone if this request fails.
+        // This is just a heuristic, and sometimes all failing paths are not caught, so the crafting could try
+        // to use items that are not really necessary, but it's better than nothing.
+        final List<IAEItemStack> usedNetworkItemsCopy = new ArrayList<>();
 
         // First try to collect items from the inventory
-
         this.what.setStackSize(requestedAmount);
         if (this.getSlot() >= 0 && this.parent != null && this.parent.details.isCraftable()) {
             // Special case: if this is a crafting pattern and there is a parent, also try to use a substitute input.
@@ -155,13 +172,14 @@ public class CraftingTreeNode {
                     final IAEItemStack available = inv.extractItems(fuzz, Actionable.MODULATE, src);
 
                     if (available != null) {
+                        // Heuristic to build the set of things that need to be extracted from the network.
+                        // Assume things come from the network first.
                         if (!this.exhausted) {
-                            // TODO: what is this?
-                            final IAEItemStack is = this.job.checkUse(available);
+                            final IAEItemStack is = this.job.extractFromNetworkInventory(available);
 
                             if (is != null) {
-                                thingsUsed.add(is.copy());
-                                this.used.add(is);
+                                usedNetworkItemsCopy.add(is.copy());
+                                this.usedNetworkItems.add(is);
                             }
                         }
 
@@ -178,12 +196,14 @@ public class CraftingTreeNode {
             final IAEItemStack available = inv.extractItems(this.what, Actionable.MODULATE, src);
 
             if (available != null) {
+                // Heuristic to build the set of things that need to be extracted from the network.
+                // Assume things come from the network first.
                 if (!this.exhausted) {
-                    final IAEItemStack is = this.job.checkUse(available);
+                    final IAEItemStack is = this.job.extractFromNetworkInventory(available);
 
                     if (is != null) {
-                        thingsUsed.add(is.copy());
-                        this.used.add(is);
+                        usedNetworkItemsCopy.add(is.copy());
+                        this.usedNetworkItems.add(is);
                     }
                 }
 
@@ -196,6 +216,7 @@ public class CraftingTreeNode {
             }
         }
 
+        // Try to emit if possible, never fails obviously.
         if (this.canEmit) {
             final IAEItemStack wat = this.what.copy();
             wat.setStackSize(requestedAmount);
@@ -206,17 +227,21 @@ public class CraftingTreeNode {
             return wat;
         }
 
+        // Make sure future extractions from the crafting inventory don't trigger network inventory extractions.
+        // (See variable javadoc)
         this.exhausted = true;
 
+        // Try to make the pattern
         if (this.nodes.size() == 1) {
             final CraftingTreeProcess pro = this.nodes.get(0);
 
             while (pro.possible && requestedAmount > 0) {
                 final IAEItemStack madeWhat = pro.getAmountCrafted(this.what);
 
+                // Try to produce the request items and put them in {@code inv}.
                 pro.request(inv, pro.getTimes(requestedAmount, madeWhat.getStackSize()), src);
 
-                // by now we have succeeded, as request throws an exception in case of failure
+                // By now we should have succeeded, as request throws an exception in case of failure.
                 madeWhat.setStackSize(requestedAmount);
 
                 final IAEItemStack available = inv.extractItems(madeWhat, Actionable.MODULATE, src);
@@ -229,21 +254,31 @@ public class CraftingTreeNode {
                         return available;
                     }
                 } else {
-                    pro.possible = false; // ;P
+                    // An exception should have been thrown above, so this shouldn't happen.
+                    // If it does, make sure we stop iterating.
+                    // TODO: evaluate if this could be replaced by a break
+                    pro.possible = false;
                 }
             }
         } else if (this.nodes.size() > 1) {
+            // With multiple patterns to make this, try each branch separately.
             for (final CraftingTreeProcess pro : this.nodes) {
                 try {
                     while (pro.possible && requestedAmount > 0) {
+                        // Copy the entire inventory for the request and use it.
+                        // If an exception is thrown the copy will simply discard the result.
                         final MECraftingInventory subInv = new MECraftingInventory(inv, true, true);
+                        // Request 1 by 1 to make sure the production can be split across multiple branches.
                         pro.request(subInv, 1, src);
 
                         this.what.setStackSize(requestedAmount);
                         final IAEItemStack available = subInv.extractItems(this.what, Actionable.MODULATE, src);
 
                         if (available != null) {
+                            // Everything went well, try to apply modifications to the parent inventory.
                             if (!subInv.commit(src)) {
+                                // Not supposed to fail, if it does just throw an exception, it's equivalent to the
+                                // request failing.
                                 throw new CraftBranchFailure(this.what, requestedAmount);
                             }
 
@@ -254,16 +289,20 @@ public class CraftingTreeNode {
                                 return available;
                             }
                         } else {
-                            pro.possible = false; // ;P
+                            // Again, not supposed to happen.
+                            // TODO: evaluate if this could be replaced by a break
+                            pro.possible = false;
                         }
                     }
                 } catch (final CraftBranchFailure fail) {
+                    // TODO: evaluate if this is useful.
                     pro.possible = true;
                 }
             }
         }
 
         if (this.sim) {
+            // If simulating, just report what's missing
             this.missing += requestedAmount;
             this.bytes += requestedAmount;
             final IAEItemStack rv = this.what.copy();
@@ -271,39 +310,31 @@ public class CraftingTreeNode {
             return rv;
         }
 
-        for (final IAEItemStack o : thingsUsed) {
-            this.job.refund(o.copy());
+        // This branch has failed, so we must re-inject the items we marked as used in the network so they don't get
+        // extracted when the job is attempted.
+        // TODO: looks funky, the single pattern case can throw an exception that short-circuits this cleanup.
+        for (final IAEItemStack o : usedNetworkItemsCopy) {
+            this.job.reinjectIntoNetworkInventory(o.copy());
             o.setStackSize(-o.getStackSize());
-            this.used.add(o);
+            this.usedNetworkItems.add(o);
         }
 
         throw new CraftBranchFailure(this.what, requestedAmount);
     }
 
-    void dive(final CraftingJob job) {
-        if (this.missing > 0) {
-            job.addMissing(this.getStack(this.missing));
-        }
-        // missing = 0;
-
+    void reportBytes(final CraftingJob job) {
         job.addBytes(8 + this.bytes);
 
         for (final CraftingTreeProcess pro : this.nodes) {
-            pro.dive(job);
+            pro.reportBytes(job);
         }
-    }
-
-    IAEItemStack getStack(final long size) {
-        final IAEItemStack is = this.what.copy();
-        is.setStackSize(size);
-        return is;
     }
 
     void setSimulate() {
         this.sim = true;
         this.missing = 0;
         this.bytes = 0;
-        this.used.resetStatus();
+        this.usedNetworkItems.resetStatus();
         this.exhausted = false;
 
         for (final CraftingTreeProcess pro : this.nodes) {
@@ -311,30 +342,40 @@ public class CraftingTreeNode {
         }
     }
 
-    public void setJob(final MECraftingInventory storage, final CraftingCPUCluster craftingCPUCluster,
+    /**
+     * Try to recursively assign the job to a CPU.
+     *
+     * @param storage A copy of the network inventory, on which to act to make sure everything can still be extracted.
+     */
+    public void tryAssignToCpu(final MECraftingInventory storage, final CraftingCPUCluster craftingCPUCluster,
             final IActionSource src) throws CraftBranchFailure {
-        for (final IAEItemStack i : this.used) {
+        // Try to move items from the network to the crafting CPU.
+        for (final IAEItemStack i : this.usedNetworkItems) {
+            // Extract from network (copy).
             final IAEItemStack ex = storage.extractItems(i, Actionable.MODULATE, src);
 
             if (ex == null || ex.getStackSize() != i.getStackSize()) {
                 throw new CraftBranchFailure(i, i.getStackSize());
             }
 
+            // Insert into the CPU's internal inventory.
             craftingCPUCluster.addStorage(ex);
         }
 
+        // Mark emitted items
         if (this.howManyEmitted > 0) {
             final IAEItemStack i = this.what.copy().reset();
             i.setStackSize(this.howManyEmitted);
             craftingCPUCluster.addEmitable(i);
         }
 
+        // Recurse
         for (final CraftingTreeProcess pro : this.nodes) {
-            pro.setJob(storage, craftingCPUCluster, src);
+            pro.tryAssignToCpu(storage, craftingCPUCluster, src);
         }
     }
 
-    void getPlan(final IItemList<IAEItemStack> plan) {
+    void populatePlan(final IItemList<IAEItemStack> plan) {
         if (this.missing > 0) {
             final IAEItemStack o = this.what.copy();
             o.setStackSize(this.missing);
@@ -347,12 +388,12 @@ public class CraftingTreeNode {
             plan.addRequestable(i);
         }
 
-        for (final IAEItemStack i : this.used) {
+        for (final IAEItemStack i : this.usedNetworkItems) {
             plan.add(i.copy());
         }
 
         for (final CraftingTreeProcess pro : this.nodes) {
-            pro.getPlan(plan);
+            pro.populatePlan(plan);
         }
     }
 

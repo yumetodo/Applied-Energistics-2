@@ -129,6 +129,7 @@ public class CraftingGridCache
         this.storageGrid = this.grid.getCache(IStorageGrid.class);
         this.energyGrid = this.grid.getCache(IEnergyGrid.class);
 
+        // Register this grid as a max priority storage cell, allows us to intercept any injection.
         this.storageGrid.registerCellProvider(this);
     }
 
@@ -139,12 +140,7 @@ public class CraftingGridCache
             this.updateCPUClusters();
         }
 
-        final Iterator<CraftingLinkNexus> craftingLinkIterator = this.craftingLinks.values().iterator();
-        while (craftingLinkIterator.hasNext()) {
-            if (craftingLinkIterator.next().isDead(this.grid, this)) {
-                craftingLinkIterator.remove();
-            }
-        }
+        this.craftingLinks.values().removeIf(craftingLinkNexus -> craftingLinkNexus.isDead(this.grid, this));
 
         for (final CraftingCPUCluster cpu : this.craftingCPUClusters) {
             cpu.updateCraftingLogic(this.grid, this.energyGrid, this);

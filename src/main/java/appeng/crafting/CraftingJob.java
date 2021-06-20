@@ -32,7 +32,6 @@ import appeng.api.networking.IGridNode;
 import appeng.api.networking.crafting.ICraftingCallback;
 import appeng.api.networking.crafting.ICraftingGrid;
 import appeng.api.networking.crafting.ICraftingJob;
-import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.networking.security.IActionHost;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.networking.storage.IStorageGrid;
@@ -48,21 +47,32 @@ public class CraftingJob implements Runnable, ICraftingJob {
     private static final String LOG_CRAFTING_JOB = "CraftingJob (%s) issued by %s requesting [%s] using %s bytes took %s ms";
     private static final String LOG_MACHINE_SOURCE_DETAILS = "Machine[object=%s, %s]";
 
-    private final MECraftingInventory original;
+    /**
+     * Copy of the network inventory at the time the job was started - never modified.
+     */
+    private final MECraftingInventory originalNetworkInventory;
+    /**
+     * Copy of the network inventory, with some items extracted. This is used to compute which items can still be
+     * extracted from the network - modified during the simulation.
+     */
+    private MECraftingInventory leftoverNetworkInventory;
+    private final CraftingTreeNode tree;
+    private final IAEItemStack output;
     private final World world;
-    private final IItemList<IAEItemStack> crafting = Api.instance().storage()
-            .getStorageChannel(IItemStorageChannel.class).createList();
-    private final IItemList<IAEItemStack> missing = Api.instance().storage()
-            .getStorageChannel(IItemStorageChannel.class).createList();
+    private final IActionSource actionSrc;
+    /**
+     * Crafting calculation happens in two phases. - Simulate = false: try to resolve the calculation, by branching when
+     * a subcraft fails. - Simulate = true: if the first phase failed, don't branch and build a list of missing items.
+     */
+    private boolean simulate = false;
+    private final ICraftingCallback callback;
+    private long bytes = 0;
+
+    // =====
+    // Pausing logic, and general status monitoring
+    // =====
     private final Object monitor = new Object();
     private final Stopwatch watch = Stopwatch.createUnstarted();
-    private CraftingTreeNode tree;
-    private final IAEItemStack output;
-    private boolean simulate = false;
-    private MECraftingInventory availableCheck;
-    private long bytes = 0;
-    private final IActionSource actionSrc;
-    private final ICraftingCallback callback;
     private boolean running = false;
     private boolean done = false;
     private int time = 5;
@@ -77,33 +87,20 @@ public class CraftingJob implements Runnable, ICraftingJob {
         this.callback = callback;
         final ICraftingGrid cc = grid.getCache(ICraftingGrid.class);
         final IStorageGrid sg = grid.getCache(IStorageGrid.class);
-        this.original = new MECraftingInventory(
+        this.originalNetworkInventory = new MECraftingInventory(
                 sg.getInventory(Api.instance().storage().getStorageChannel(IItemStorageChannel.class)), actionSrc,
                 false, false);
 
-        this.setTree(new CraftingTreeNode(cc, this, what, null, -1, 0));
-        this.availableCheck = null;
+        this.tree = new CraftingTreeNode(cc, this, what, null, -1, 0);
+        this.leftoverNetworkInventory = null;
     }
 
-    void refund(final IAEItemStack o) {
-        this.availableCheck.injectItems(o, Actionable.MODULATE, this.actionSrc);
+    void reinjectIntoNetworkInventory(final IAEItemStack o) {
+        this.leftoverNetworkInventory.injectItems(o, Actionable.MODULATE, this.actionSrc);
     }
 
-    IAEItemStack checkUse(final IAEItemStack available) {
-        return this.availableCheck.extractItems(available, Actionable.MODULATE, this.actionSrc);
-    }
-
-    void addTask(IAEItemStack what, final long crafts, final ICraftingPatternDetails details, final int depth) {
-        if (crafts > 0) {
-            what = what.copy();
-            what.setStackSize(what.getStackSize() * crafts);
-            this.crafting.add(what);
-        }
-    }
-
-    void addMissing(IAEItemStack what) {
-        what = what.copy();
-        this.missing.add(what);
+    IAEItemStack extractFromNetworkInventory(final IAEItemStack available) {
+        return this.leftoverNetworkInventory.extractItems(available, Actionable.MODULATE, this.actionSrc);
     }
 
     @Override
@@ -143,21 +140,22 @@ public class CraftingJob implements Runnable, ICraftingJob {
     private void computeCraft(boolean simulate) throws CraftBranchFailure, InterruptedException {
         final Stopwatch timer = Stopwatch.createStarted();
 
-        final MECraftingInventory craftingInventory = new MECraftingInventory(this.original, true, false);
+        final MECraftingInventory craftingInventory = new MECraftingInventory(this.originalNetworkInventory, true,
+                false);
         craftingInventory.ignore(this.output);
 
-        this.availableCheck = new MECraftingInventory(this.original, false, false);
+        this.leftoverNetworkInventory = new MECraftingInventory(this.originalNetworkInventory, false, false);
         if (simulate) {
             this.getTree().setSimulate();
         }
         this.getTree().request(craftingInventory, this.output.getStackSize(), this.actionSrc);
-        this.getTree().dive(this);
+        this.getTree().reportBytes(this);
 
         // TODO: log tree?
-        //for (final String s : this.opsAndMultiplier.keySet()) {
-        //    final TwoIntegers ti = this.opsAndMultiplier.get(s);
-        //    AELog.crafting(s + " * " + ti.times + " = " + ti.perOp * ti.times);
-        //}
+        // for (final String s : this.opsAndMultiplier.keySet()) {
+        // final TwoIntegers ti = this.opsAndMultiplier.get(s);
+        // AELog.crafting(s + " * " + ti.times + " = " + ti.perOp * ti.times);
+        // }
 
         this.logCraftingJob(simulate ? "simulate" : "real", timer);
     }
@@ -196,7 +194,7 @@ public class CraftingJob implements Runnable, ICraftingJob {
             this.callback.calculationComplete(this);
         }
 
-        this.availableCheck = null;
+        this.leftoverNetworkInventory = null;
 
         synchronized (this.monitor) {
             this.running = false;
@@ -218,17 +216,13 @@ public class CraftingJob implements Runnable, ICraftingJob {
     @Override
     public void populatePlan(final IItemList<IAEItemStack> plan) {
         if (this.getTree() != null) {
-            this.getTree().getPlan(plan);
+            this.getTree().populatePlan(plan);
         }
     }
 
     @Override
     public IAEItemStack getOutput() {
         return this.output;
-    }
-
-    public boolean isDone() {
-        return this.done;
     }
 
     World getWorld() {
@@ -276,10 +270,6 @@ public class CraftingJob implements Runnable, ICraftingJob {
 
     public CraftingTreeNode getTree() {
         return this.tree;
-    }
-
-    private void setTree(final CraftingTreeNode tree) {
-        this.tree = tree;
     }
 
     private void logCraftingJob(String type, Stopwatch timer) {

@@ -25,6 +25,9 @@ package appeng.api.networking.crafting;
 
 import net.minecraft.nbt.CompoundNBT;
 
+/**
+ * Link between a crafting job and either its CPU or requesting machine.
+ */
 public interface ICraftingLink {
 
     /**

@@ -36,8 +36,8 @@ import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.util.Platform;
 
 /**
- * A crafting tree process is what represents a pattern in the crafting process.
- * It has a parent node (its output), and a list of child nodes for its inputs.
+ * A crafting tree process is what represents a pattern in the crafting process. It has a parent node (its output), and
+ * a list of child nodes for its inputs.
  */
 public class CraftingTreeProcess {
 
@@ -50,7 +50,8 @@ public class CraftingTreeProcess {
     private long crafts = 0;
     private boolean containerItems;
     /**
-     * If true, we perform this pattern by 1 at the time. This ensures that container items or outputs get reused when possible.
+     * If true, we perform this pattern by 1 at the time. This ensures that container items or outputs get reused when
+     * possible.
      */
     private boolean limitQty;
     private long bytes = 0;
@@ -135,13 +136,17 @@ public class CraftingTreeProcess {
         return remaining / stackSize + (remaining % stackSize != 0 ? 1 : 0);
     }
 
-    void request(final MECraftingInventory inv, final long i, final IActionSource src)
+    /**
+     * Craft this pattern {@code patternTimes} times, using the items in {@code inv}, and putting the results in
+     * {@code inv}.
+     */
+    void request(final MECraftingInventory inv, final long patternTimes, final IActionSource src)
             throws CraftBranchFailure, InterruptedException {
         this.job.handlePausing();
 
         // request and remove inputs...
         for (final Entry<CraftingTreeNode, Long> entry : this.nodes.entrySet()) {
-            final IAEItemStack stack = entry.getKey().request(inv, entry.getValue() * i, src);
+            final IAEItemStack stack = entry.getKey().request(inv, entry.getValue() * patternTimes, src);
 
             if (this.containerItems) {
                 final ItemStack is = Platform.getContainerItem(stack.createItemStack());
@@ -159,17 +164,16 @@ public class CraftingTreeProcess {
         // add crafting results..
         for (final IAEItemStack out : this.details.getOutputs()) {
             final IAEItemStack o = out.copy();
-            o.setStackSize(o.getStackSize() * i);
+            o.setStackSize(o.getStackSize() * patternTimes);
             inv.injectItems(o, Actionable.MODULATE, src);
         }
 
-        this.crafts += i;
+        this.crafts += patternTimes;
     }
 
-    void dive(final CraftingJob job) {
-        job.addTask(this.getAmountCrafted(this.parent.getStack(1)), this.crafts, this.details, this.depth);
+    void reportBytes(final CraftingJob job) {
         for (final CraftingTreeNode pro : this.nodes.keySet()) {
-            pro.dive(job);
+            pro.reportBytes(job);
         }
 
         job.addBytes(8 + this.crafts + this.bytes);
@@ -207,16 +211,18 @@ public class CraftingTreeProcess {
         }
     }
 
-    void setJob(final MECraftingInventory storage, final CraftingCPUCluster craftingCPUCluster, final IActionSource src)
+    void tryAssignToCpu(final MECraftingInventory storage, final CraftingCPUCluster craftingCPUCluster,
+            final IActionSource src)
             throws CraftBranchFailure {
+        // Mark pattern to be crafted.
         craftingCPUCluster.addCrafting(this.details, this.crafts);
 
         for (final CraftingTreeNode pro : this.nodes.keySet()) {
-            pro.setJob(storage, craftingCPUCluster, src);
+            pro.tryAssignToCpu(storage, craftingCPUCluster, src);
         }
     }
 
-    void getPlan(final IItemList<IAEItemStack> plan) {
+    void populatePlan(final IItemList<IAEItemStack> plan) {
         for (IAEItemStack i : this.details.getOutputs()) {
             i = i.copy();
             i.setCountRequestable(i.getStackSize() * this.crafts);
@@ -224,7 +230,7 @@ public class CraftingTreeProcess {
         }
 
         for (final CraftingTreeNode pro : this.nodes.keySet()) {
-            pro.getPlan(plan);
+            pro.populatePlan(plan);
         }
     }
 }
