@@ -50,6 +50,7 @@ import appeng.api.storage.IMEInventory;
 import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.channels.IItemStorageChannel;
 import appeng.api.storage.data.IAEItemStack;
+import appeng.api.storage.data.IAEStack;
 import appeng.api.util.AECableType;
 import appeng.container.ContainerLocator;
 import appeng.container.ContainerOpener;
@@ -222,26 +223,30 @@ public class ExportBusPart extends SharedItemBusPart implements ICraftingRequest
     }
 
     @Override
-    public IAEItemStack injectCraftedItems(final ICraftingLink link, final IAEItemStack items, final Actionable mode) {
+    public <T extends IAEStack<?>> T injectCraftedStacks(ICraftingLink link, T stack, Actionable mode) {
+        if (!(stack instanceof IAEItemStack))
+            return stack;
+        IAEItemStack itemStack = (IAEItemStack) stack;
+
         final InventoryAdaptor d = this.getHandler();
 
         try {
             if (d != null && this.getProxy().isActive()) {
                 final IEnergyGrid energy = this.getProxy().getEnergy();
-                final double power = items.getStackSize();
+                final double power = itemStack.getStackSize();
 
                 if (energy.extractAEPower(power, mode, PowerMultiplier.CONFIG) > power - 0.01) {
                     if (mode == Actionable.MODULATE) {
-                        return AEItemStack.fromItemStack(d.addItems(items.createItemStack()));
+                        return (T) AEItemStack.fromItemStack(d.addItems(itemStack.createItemStack()));
                     }
-                    return AEItemStack.fromItemStack(d.simulateAdd(items.createItemStack()));
+                    return (T) AEItemStack.fromItemStack(d.simulateAdd(itemStack.createItemStack()));
                 }
             }
         } catch (final GridAccessException e) {
             AELog.debug(e);
         }
 
-        return items;
+        return stack;
     }
 
     @Override

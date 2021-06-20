@@ -906,7 +906,14 @@ public class DualityInterface implements IGridTickable, IStorageMonitorable, IIn
         return this.craftingTracker.getRequestedJobs();
     }
 
-    public IAEItemStack injectCraftedItems(final ICraftingLink link, final IAEItemStack acquired,
+    public <T extends IAEStack<?>> T injectCraftedStacks(ICraftingLink link, T items, Actionable mode) {
+        if (items instanceof IAEItemStack) {
+            return (T) injectCraftedItems(link, (IAEItemStack) items, mode);
+        }
+        return items;
+    }
+
+    private IAEItemStack injectCraftedItems(final ICraftingLink link, final IAEItemStack acquired,
             final Actionable mode) {
         final int slot = this.craftingTracker.getSlot(link);
 

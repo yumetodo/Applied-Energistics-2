@@ -88,8 +88,7 @@ import appeng.me.helpers.GenericInterestManager;
 import appeng.tile.crafting.CraftingStorageTileEntity;
 import appeng.tile.crafting.CraftingTileEntity;
 
-public class CraftingGridCache
-        implements ICraftingGrid, ICraftingProviderHelper, ICellProvider, IMEInventoryHandler<IAEItemStack> {
+public class CraftingGridCache implements ICraftingGrid, ICraftingProviderHelper, ICellProvider {
 
     private static final ExecutorService CRAFTING_POOL;
     private static final Comparator<ICraftingPatternDetails> COMPARATOR = (firstDetail,
@@ -110,8 +109,8 @@ public class CraftingGridCache
     private final Map<IGridNode, ICraftingWatcher> craftingWatchers = new HashMap<>();
     private final IGrid grid;
     private final Map<ICraftingPatternDetails, List<ICraftingMedium>> craftingMethods = new HashMap<>();
-    private final Map<IAEItemStack, ImmutableList<ICraftingPatternDetails>> craftableItems = new HashMap<>();
-    private final Set<IAEItemStack> emitableItems = new HashSet<>();
+    private final Map<IAEStack<?>, ImmutableList<ICraftingPatternDetails>> craftableItems = new HashMap<>();
+    private final Set<IAEStack<?>> emitableItems = new HashSet<>();
     private final Map<String, CraftingLinkNexus> craftingLinks = new HashMap<>();
     private final Multimap<IAEStack, CraftingWatcher> interests = HashMultimap.create();
     private final GenericInterestManager<CraftingWatcher> interestManager = new GenericInterestManager<>(
@@ -217,7 +216,7 @@ public class CraftingGridCache
     }
 
     private void updatePatterns() {
-        final Map<IAEItemStack, ImmutableList<ICraftingPatternDetails>> oldItems = this.craftableItems;
+        final Map<IAEStack<?>, ImmutableList<ICraftingPatternDetails>> oldItems = this.craftableItems;
 
         // erase list.
         this.craftingMethods.clear();
@@ -326,9 +325,7 @@ public class CraftingGridCache
     public List<IMEInventoryHandler> getCellArray(final IStorageChannel<?> channel) {
         final List<IMEInventoryHandler> list = new ArrayList<>(1);
 
-        if (channel == Api.instance().storage().getStorageChannel(IItemStorageChannel.class)) {
-            list.add(this);
-        }
+        list.add(new CraftingGridInventoryHandler(channel));
 
         return list;
     }
@@ -339,84 +336,26 @@ public class CraftingGridCache
     }
 
     @Override
-    public AccessRestriction getAccess() {
-        return AccessRestriction.WRITE;
-    }
-
-    @Override
-    public boolean isPrioritized(final IAEItemStack input) {
-        return true;
-    }
-
-    @Override
-    public boolean canAccept(final IAEItemStack input) {
-        for (final CraftingCPUCluster cpu : this.craftingCPUClusters) {
-            if (cpu.canAccept(input)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    @Override
-    public int getSlot() {
-        return 0;
-    }
-
-    @Override
-    public boolean validForPass(final int i) {
-        return i == 1;
-    }
-
-    @Override
-    public IAEItemStack injectItems(IAEItemStack input, final Actionable type, final IActionSource src) {
-        for (final CraftingCPUCluster cpu : this.craftingCPUClusters) {
-            input = cpu.injectItems(input, type, src);
-        }
-
-        return input;
-    }
-
-    @Override
-    public IAEItemStack extractItems(final IAEItemStack request, final Actionable mode, final IActionSource src) {
-        return null;
-    }
-
-    @Override
-    public IItemList<IAEItemStack> getAvailableItems(final IItemList<IAEItemStack> out) {
-        // add craftable items!
-        for (final IAEItemStack stack : this.craftableItems.keySet()) {
-            out.addCrafting(stack);
-        }
-
-        for (final IAEItemStack st : this.emitableItems) {
-            out.addCrafting(st);
-        }
-
-        return out;
-    }
-
-    @Override
-    public IStorageChannel<IAEItemStack> getChannel() {
-        return Api.instance().storage().getStorageChannel(IItemStorageChannel.class);
-    }
-
-    @Override
     public ImmutableCollection<ICraftingPatternDetails> getCraftingFor(final IAEItemStack whatToCraft,
             final ICraftingPatternDetails details, final int slotIndex, final World world) {
         final ImmutableList<ICraftingPatternDetails> res = this.craftableItems.get(whatToCraft);
 
         if (res == null) {
             if (details != null && details.isCraftable()) {
-                for (final IAEItemStack ais : this.craftableItems.keySet()) {
+                for (final IAEStack<?> stack : this.craftableItems.keySet()) {
+                    // not generic yet!
+                    // FIXME ANY STACK
+                    if (!(stack instanceof IAEItemStack))
+                        continue;
+                    IAEItemStack itemStack = (IAEItemStack) stack;
                     // TODO: check if OK
                     // TODO: this is slightly hacky, but fine as long as we only deal with
                     // itemstacks
-                    if (ais.getItem() == whatToCraft.getItem()
-                            && (!ais.getItem().isDamageable() || ais.getItemDamage() == whatToCraft.getItemDamage())
-                            && details.isValidItemForSlot(slotIndex, ais.asItemStackRepresentation(), world)) {
-                        return this.craftableItems.get(ais);
+                    if (itemStack.getItem() == whatToCraft.getItem()
+                            && (!itemStack.getItem().isDamageable()
+                                    || itemStack.getItemDamage() == whatToCraft.getItemDamage())
+                            && details.isValidItemForSlot(slotIndex, itemStack.asItemStackRepresentation(), world)) {
+                        return this.craftableItems.get(itemStack);
                     }
                 }
             }
@@ -570,6 +509,96 @@ public class CraftingGridCache
         @Override
         public void remove() {
             // no..
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
+    private class CraftingGridInventoryHandler implements IMEInventoryHandler {
+        private final IStorageChannel<?> storageChannel;
+
+        CraftingGridInventoryHandler(IStorageChannel<?> storageChannel) {
+            this.storageChannel = storageChannel;
+        }
+
+        @Override
+        public AccessRestriction getAccess() {
+            return AccessRestriction.WRITE;
+        }
+
+        @Override
+        public boolean isPrioritized(IAEStack input) {
+            return true;
+        }
+
+        @Override
+        public boolean canAccept(IAEStack input) {
+            // FIXME ANY STACK only items for now
+            if (!(input instanceof IAEItemStack))
+                return false;
+
+            for (final CraftingCPUCluster cpu : craftingCPUClusters) {
+                if (cpu.canAccept((IAEItemStack) input)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        @Override
+        public int getPriority() {
+            return Integer.MAX_VALUE;
+        }
+
+        @Override
+        public int getSlot() {
+            return 0;
+        }
+
+        @Override
+        public boolean validForPass(int i) {
+            return i == 1;
+        }
+
+        @Override
+        public IAEStack injectItems(IAEStack input, Actionable type, IActionSource src) {
+            // FIXME ANY STACK only items for now
+            if (!(input instanceof IAEItemStack))
+                return input;
+
+            for (final CraftingCPUCluster cpu : craftingCPUClusters) {
+                input = cpu.injectItems((IAEItemStack) input, type, src);
+            }
+
+            return input;
+        }
+
+        @Override
+        public IAEStack extractItems(IAEStack request, Actionable mode, IActionSource src) {
+            return null;
+        }
+
+        @Override
+        public IItemList getAvailableItems(IItemList out) {
+            // Add craftable items! Notably, this allows terminals to see craftable items.
+            for (final IAEStack stack : craftableItems.keySet()) {
+                if (stack.getChannel() == storageChannel) {
+                    out.addCrafting(stack);
+                }
+            }
+
+            for (final IAEStack stack : emitableItems) {
+                if (stack.getChannel() == storageChannel) {
+                    out.addCrafting(stack);
+                }
+            }
+
+            return out;
+        }
+
+        @Override
+        public IStorageChannel getChannel() {
+            return storageChannel;
         }
     }
 }

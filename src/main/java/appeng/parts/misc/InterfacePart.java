@@ -54,7 +54,6 @@ import appeng.api.parts.IPartModel;
 import appeng.api.storage.IMEMonitor;
 import appeng.api.storage.IStorageChannel;
 import appeng.api.storage.IStorageMonitorable;
-import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IAEStack;
 import appeng.api.util.AECableType;
 import appeng.api.util.IConfigManager;
@@ -230,8 +229,8 @@ public class InterfacePart extends BasicStatePart implements IGridTickable, ISto
     }
 
     @Override
-    public IAEItemStack injectCraftedItems(final ICraftingLink link, final IAEItemStack items, final Actionable mode) {
-        return this.duality.injectCraftedItems(link, items, mode);
+    public <T extends IAEStack<?>> T injectCraftedStacks(ICraftingLink link, T items, Actionable mode) {
+        return this.duality.injectCraftedStacks(link, items, mode);
     }
 
     @Override

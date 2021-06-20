@@ -158,7 +158,7 @@ public class CraftingLink implements ICraftingLink {
             return input;
         }
 
-        return this.tie.getRequest().getRequester().injectCraftedItems(this.tie.getRequest(), input, mode);
+        return this.tie.getRequest().getRequester().injectCraftedStacks(this.tie.getRequest(), input, mode);
     }
 
     public void markDone() {

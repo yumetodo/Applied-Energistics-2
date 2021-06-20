@@ -53,7 +53,7 @@ import appeng.api.networking.events.MENetworkPowerStatusChange;
 import appeng.api.networking.ticking.IGridTickable;
 import appeng.api.networking.ticking.TickRateModulation;
 import appeng.api.networking.ticking.TickingRequest;
-import appeng.api.storage.data.IAEItemStack;
+import appeng.api.storage.data.IAEStack;
 import appeng.api.util.AECableType;
 import appeng.api.util.AEPartLocation;
 import appeng.api.util.DimensionalCoord;
@@ -270,8 +270,8 @@ public class InterfaceTileEntity extends AENetworkInvTileEntity
     }
 
     @Override
-    public IAEItemStack injectCraftedItems(final ICraftingLink link, final IAEItemStack items, final Actionable mode) {
-        return this.duality.injectCraftedItems(link, items, mode);
+    public <T extends IAEStack<?>> T injectCraftedStacks(ICraftingLink link, T items, Actionable mode) {
+        return this.duality.injectCraftedStacks(link, items, mode);
     }
 
     @Override
