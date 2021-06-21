@@ -56,11 +56,11 @@ import net.minecraftforge.client.event.TextureStitchEvent;
 import net.minecraftforge.client.model.ModelLoader;
 import net.minecraftforge.client.model.ModelLoaderRegistry;
 import net.minecraftforge.client.model.geometry.IModelGeometry;
+import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.RegistryEvent;
 import net.minecraftforge.event.world.BiomeLoadingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.fml.event.server.FMLServerStartingEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.registries.IForgeRegistry;
@@ -620,8 +620,8 @@ final class Registration {
         InscriberTESR.registerTexture(event);
     }
 
-    public void registerCommands(final FMLServerStartingEvent evt) {
-        CommandDispatcher<CommandSource> dispatcher = evt.getServer().getCommandManager().getDispatcher();
+    public void registerCommands(final RegisterCommandsEvent evt) {
+        CommandDispatcher<CommandSource> dispatcher = evt.getDispatcher();
         new AECommand().register(dispatcher);
     }
 

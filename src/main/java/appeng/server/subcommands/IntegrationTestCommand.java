@@ -15,8 +15,13 @@ import appeng.test.TestManager;
 public class IntegrationTestCommand implements ISubCommand {
     @Override
     public void addArguments(LiteralArgumentBuilder<CommandSource> builder) {
-        builder.then(literal("yes").executes(ctx -> {
-            yes(ctx);
+        builder.then(literal("start").executes(ctx -> {
+            TestManager.get(ServerLifecycleHooks.getCurrentServer()).startTests();
+            return 1;
+        }));
+
+        builder.then(literal("clean").executes(ctx -> {
+            TestManager.get(ServerLifecycleHooks.getCurrentServer()).cleanTests();
             return 1;
         }));
     }
@@ -24,9 +29,5 @@ public class IntegrationTestCommand implements ISubCommand {
     @Override
     public void call(MinecraftServer srv, CommandContext<CommandSource> ctx, CommandSource sender) {
 
-    }
-
-    private void yes(CommandContext<CommandSource> ctx) {
-        TestManager.get(ServerLifecycleHooks.getCurrentServer()).startTesting();
     }
 }
