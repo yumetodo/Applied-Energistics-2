@@ -18,15 +18,14 @@
 
 package appeng.server;
 
-import appeng.server.subcommands.ChunkLogger;
-import appeng.server.subcommands.SpatialStorageCommand;
-import appeng.server.subcommands.Supporters;
-import appeng.server.subcommands.TestMeteoritesCommand;
-import appeng.server.subcommands.TestOreGenCommand;
+import appeng.server.subcommands.*;
 
 public enum Commands {
-    Chunklogger(4, new ChunkLogger(), false), Supporters(0, new Supporters(), false),
-    TestOreGen(4, new TestOreGenCommand(), true), TestMeteorites(4, new TestMeteoritesCommand(), true),
+    Chunklogger(4, new ChunkLogger(), false),
+    IntegrationTests(4, new IntegrationTestCommand(), true),
+    Supporters(0, new Supporters(), false),
+    TestOreGen(4, new TestOreGenCommand(), true),
+    TestMeteorites(4, new TestMeteoritesCommand(), true),
     Spatial(4, new SpatialStorageCommand(), false);
 
     public final int level;
