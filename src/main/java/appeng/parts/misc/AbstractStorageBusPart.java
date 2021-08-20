@@ -22,8 +22,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import net.fabricmc.fabric.api.lookup.v1.block.BlockApiLookup;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -31,7 +33,6 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
 
 import appeng.api.config.AccessRestriction;
@@ -54,6 +55,7 @@ import appeng.api.storage.IMEInventory;
 import appeng.api.storage.IMEInventoryHandler;
 import appeng.api.storage.IMEMonitorHandlerReceiver;
 import appeng.api.storage.IStorageChannel;
+import appeng.api.storage.IStorageMonitorableAccessor;
 import appeng.api.storage.cells.ICellProvider;
 import appeng.api.storage.data.IAEStack;
 import appeng.api.util.AECableType;
@@ -68,12 +70,13 @@ import appeng.me.storage.MEInventoryHandler;
 import appeng.me.storage.MEMonitorIInventory;
 import appeng.menu.MenuLocator;
 import appeng.menu.MenuOpener;
+import appeng.parts.PartAdjacentApi;
 import appeng.parts.automation.UpgradeablePart;
 import appeng.util.Platform;
 import appeng.util.prioritylist.FuzzyPriorityList;
 import appeng.util.prioritylist.PrecisePriorityList;
 
-public abstract class AbstractStorageBusPart<T extends IAEStack<T>> extends UpgradeablePart
+public abstract class AbstractStorageBusPart<A, T extends IAEStack<T>> extends UpgradeablePart
         implements IGridTickable, ICellProvider, IMEMonitorHandlerReceiver<T>, IPriorityHost {
     protected final IActionSource source;
     private final TickRates tickRates;
@@ -84,9 +87,13 @@ public abstract class AbstractStorageBusPart<T extends IAEStack<T>> extends Upgr
     private MEInventoryHandler<T> handler = null;
     private int handlerHash = 0;
     private byte resetCacheLogic = 0;
+    private final PartAdjacentApi<IStorageMonitorableAccessor> adjacentStorageAccessor;
+    private final PartAdjacentApi<A> adjacentExternalApi;
 
-    public AbstractStorageBusPart(TickRates tickRates, ItemStack is) {
+    public AbstractStorageBusPart(BlockApiLookup<A, Direction> apiLookup, TickRates tickRates, ItemStack is) {
         super(is);
+        this.adjacentStorageAccessor = new PartAdjacentApi<>(this, Capabilities.GRID_STORAGE_ACCESSOR);
+        this.adjacentExternalApi = new PartAdjacentApi<>(this, apiLookup);
         this.tickRates = tickRates;
         this.getConfigManager().registerSetting(Settings.ACCESS, AccessRestriction.READ_WRITE);
         this.getConfigManager().registerSetting(Settings.FUZZY_MODE, FuzzyMode.IGNORE_ALL);
@@ -100,13 +107,12 @@ public abstract class AbstractStorageBusPart<T extends IAEStack<T>> extends Upgr
     protected abstract IStorageChannel<T> getStorageChannel();
 
     @Nullable
-    protected abstract IMEInventory<T> getHandlerAdapter(BlockEntity target, Direction targetSide,
-            Runnable alertDevice);
+    protected abstract IMEInventory<T> getExternalApiAdapter(@Nonnull A api, Runnable alertDevice);
 
     /**
      * Hash the adjacent handler, or return 0 if there is no handler.
      */
-    protected abstract int getHandlerHash(BlockEntity target, Direction targetSide);
+    protected abstract int getHandlerHash(@Nonnull A api);
 
     protected abstract int getStackConfigSize();
 
@@ -266,15 +272,12 @@ public abstract class AbstractStorageBusPart<T extends IAEStack<T>> extends Upgr
         }
     }
 
-    private IMEInventory<T> getInventoryWrapper(BlockEntity target) {
-
-        var targetSide = this.getSide().getOpposite();
+    private IMEInventory<T> getInventoryWrapper() {
 
         // Prioritize a handler to directly link to another ME network
-        var accessorOpt = target.getCapability(Capabilities.STORAGE_MONITORABLE_ACCESSOR, targetSide);
+        var accessor = adjacentStorageAccessor.find();
 
-        if (accessorOpt.isPresent()) {
-            var accessor = accessorOpt.orElse(null);
+        if (accessor != null) {
             var inventory = accessor.getInventory(this.source);
             if (inventory != null) {
                 return inventory.getInventory(getStorageChannel());
@@ -290,29 +293,33 @@ public abstract class AbstractStorageBusPart<T extends IAEStack<T>> extends Upgr
             return null;
         }
 
-        // Check via cap adapter
-        return getHandlerAdapter(target, targetSide, () -> {
-            getMainNode().ifPresent((grid, node) -> {
-                grid.getTickManager().alertDevice(node);
-            });
+        var api = adjacentExternalApi.find();
+        if (api != null) {
+            return getExternalApiAdapter(api, this::wakeUpDevice);
+        } else {
+            return null;
+        }
+    }
+
+    private void wakeUpDevice() {
+        getMainNode().ifPresent((grid, node) -> {
+            grid.getTickManager().alertDevice(node);
         });
     }
 
-    // TODO, LazyOptionals are cacheable this might need changing?
-    private int createHandlerHash(BlockEntity target) {
-        if (target == null) {
-            return 0;
+    private int createHandlerHash() {
+        // Prioritize a handler to directly link to another ME network
+        var accessor = adjacentStorageAccessor.find();
+        if (accessor != null) {
+            return Objects.hash(accessor);
         }
 
-        var targetSide = this.getSide().getOpposite();
-
-        var accessorOpt = target.getCapability(Capabilities.STORAGE_MONITORABLE_ACCESSOR, targetSide);
-
-        if (accessorOpt.isPresent()) {
-            return Objects.hash(target, accessorOpt.orElse(null));
+        var externalApi = adjacentExternalApi.find();
+        if (externalApi != null) {
+            return getHandlerHash(externalApi);
         }
 
-        return getHandlerHash(target, targetSide);
+        return 0;
     }
 
     public final MEInventoryHandler<T> getInternalHandler() {
@@ -323,10 +330,7 @@ public abstract class AbstractStorageBusPart<T extends IAEStack<T>> extends Upgr
         var wasSleeping = this.monitor == null;
 
         this.cached = true;
-        var self = this.getHost().getBlockEntity();
-        var target = self.getLevel()
-                .getBlockEntity(self.getBlockPos().relative(this.getSide()));
-        var newHandlerHash = this.createHandlerHash(target);
+        var newHandlerHash = this.createHandlerHash();
 
         if (newHandlerHash != 0 && newHandlerHash == this.handlerHash) {
             return this.handler;
@@ -335,48 +339,46 @@ public abstract class AbstractStorageBusPart<T extends IAEStack<T>> extends Upgr
         this.handlerHash = newHandlerHash;
         this.handler = null;
         this.monitor = null;
-        if (target != null) {
-            var inv = this.getInventoryWrapper(target);
 
-            if (inv instanceof MEMonitorIInventory h) {
-                h.setMode((StorageFilter) this.getConfigManager().getSetting(Settings.STORAGE_FILTER));
+        var inv = this.getInventoryWrapper();
+        if (inv instanceof MEMonitorIInventory h) {
+            h.setMode((StorageFilter) this.getConfigManager().getSetting(Settings.STORAGE_FILTER));
+        }
+
+        if (inv instanceof ITickingMonitor tickingMonitor) {
+            this.monitor = tickingMonitor;
+            this.monitor.setActionSource(new MachineSource(this));
+        }
+
+        if (inv != null) {
+            this.checkInterfaceVsStorageBus();
+
+            this.handler = new MEInventoryHandler<>(inv, getStorageChannel());
+
+            this.handler.setBaseAccess((AccessRestriction) this.getConfigManager().getSetting(Settings.ACCESS));
+            this.handler.setWhitelist(this.getInstalledUpgrades(Upgrades.INVERTER) > 0 ? IncludeExclude.BLACKLIST
+                    : IncludeExclude.WHITELIST);
+            this.handler.setPriority(this.priority);
+
+            var priorityList = getStorageChannel().createList();
+
+            var slotsToUse = 18 + this.getInstalledUpgrades(Upgrades.CAPACITY) * 9;
+            for (var x = 0; x < getStackConfigSize() && x < slotsToUse; x++) {
+                var is = getStackInConfigSlot(x);
+                if (is != null) {
+                    priorityList.add(is);
+                }
             }
 
-            if (inv instanceof ITickingMonitor tickingMonitor) {
-                this.monitor = tickingMonitor;
-                this.monitor.setActionSource(new MachineSource(this));
+            if (this.getInstalledUpgrades(Upgrades.FUZZY) > 0) {
+                this.handler.setPartitionList(new FuzzyPriorityList<>(priorityList,
+                        (FuzzyMode) this.getConfigManager().getSetting(Settings.FUZZY_MODE)));
+            } else {
+                this.handler.setPartitionList(new PrecisePriorityList<>(priorityList));
             }
 
-            if (inv != null) {
-                this.checkInterfaceVsStorageBus(target, this.getSide());
-
-                this.handler = new MEInventoryHandler<>(inv, getStorageChannel());
-
-                this.handler.setBaseAccess((AccessRestriction) this.getConfigManager().getSetting(Settings.ACCESS));
-                this.handler.setWhitelist(this.getInstalledUpgrades(Upgrades.INVERTER) > 0 ? IncludeExclude.BLACKLIST
-                        : IncludeExclude.WHITELIST);
-                this.handler.setPriority(this.priority);
-
-                var priorityList = getStorageChannel().createList();
-
-                var slotsToUse = 18 + this.getInstalledUpgrades(Upgrades.CAPACITY) * 9;
-                for (var x = 0; x < getStackConfigSize() && x < slotsToUse; x++) {
-                    var is = getStackInConfigSlot(x);
-                    if (is != null) {
-                        priorityList.add(is);
-                    }
-                }
-
-                if (this.getInstalledUpgrades(Upgrades.FUZZY) > 0) {
-                    this.handler.setPartitionList(new FuzzyPriorityList<>(priorityList,
-                            (FuzzyMode) this.getConfigManager().getSetting(Settings.FUZZY_MODE)));
-                } else {
-                    this.handler.setPartitionList(new PrecisePriorityList<>(priorityList));
-                }
-
-                if (inv instanceof IBaseMonitor) {
-                    ((IBaseMonitor<T>) inv).addListener(this, this.handler);
-                }
+            if (inv instanceof IBaseMonitor) {
+                ((IBaseMonitor<T>) inv).addListener(this, this.handler);
             }
         }
 
@@ -398,13 +400,18 @@ public abstract class AbstractStorageBusPart<T extends IAEStack<T>> extends Upgr
         return this.handler;
     }
 
-    private void checkInterfaceVsStorageBus(final BlockEntity target, final Direction side) {
+    private void checkInterfaceVsStorageBus() {
+
+        var self = getHost().getBlockEntity();
+        var side = getSide();
+        var target = self.getLevel().getBlockEntity(self.getBlockPos().relative(side));
+
         IGridNode targetNode = null;
 
         if (target instanceof ItemInterfaceBlockEntity interfaceBlockEntity) {
             targetNode = interfaceBlockEntity.getMainNode().getNode();
         } else if (target instanceof IPartHost) {
-            var part = ((IPartHost) target).getPart(side);
+            var part = ((IPartHost) target).getPart(side.getOpposite());
             if (part instanceof ItemInterfacePart interfacePart) {
                 targetNode = interfacePart.getMainNode().getNode();
             }

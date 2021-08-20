@@ -43,8 +43,8 @@ import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.common.crafting.IShapedRecipe;
 
 import appeng.api.networking.crafting.ICraftingPatternDetails;
 import appeng.api.storage.StorageChannels;
@@ -259,9 +259,9 @@ public class CraftingPatternDetails implements ICraftingPatternDetails, Comparab
      */
     private Ingredient getRecipeIngredient(int slot) {
 
-        if (standardRecipe instanceof IShapedRecipe<?>shapedRecipe) {
+        if (standardRecipe instanceof ShapedRecipe shapedRecipe) {
 
-            return getShapedRecipeIngredient(slot, shapedRecipe.getRecipeWidth());
+            return getShapedRecipeIngredient(slot, shapedRecipe.getWidth());
         } else {
             return getShapelessRecipeIngredient(slot);
         }

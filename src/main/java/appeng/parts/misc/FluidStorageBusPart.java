@@ -23,14 +23,15 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import net.minecraft.core.Direction;
+import org.jetbrains.annotations.NotNull;
+
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidStorage;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
+import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.fluids.capability.CapabilityFluidHandler;
-import net.minecraftforge.fluids.capability.IFluidHandler;
 
 import appeng.api.parts.IPartModel;
 import appeng.api.storage.IMEInventory;
@@ -48,7 +49,7 @@ import appeng.util.fluid.AEFluidInventory;
 import appeng.util.fluid.IAEFluidTank;
 import appeng.util.inv.IAEFluidInventory;
 
-public class FluidStorageBusPart extends AbstractStorageBusPart<IAEFluidStack>
+public class FluidStorageBusPart extends AbstractStorageBusPart<Storage<FluidVariant>, IAEFluidStack>
         implements IAEFluidInventory, IConfigurableFluidInventory {
     public static final ResourceLocation MODEL_BASE = new ResourceLocation(AppEng.MOD_ID,
             "part/fluid_storage_bus_base");
@@ -65,7 +66,7 @@ public class FluidStorageBusPart extends AbstractStorageBusPart<IAEFluidStack>
     private final AEFluidInventory config = new AEFluidInventory(this, 63);
 
     public FluidStorageBusPart(ItemStack is) {
-        super(TickRates.FluidStorageBus, is);
+        super(FluidStorage.SIDED, TickRates.FluidStorageBus, is);
     }
 
     @Override
@@ -75,28 +76,14 @@ public class FluidStorageBusPart extends AbstractStorageBusPart<IAEFluidStack>
 
     @Nullable
     @Override
-    protected IMEInventory<IAEFluidStack> getHandlerAdapter(BlockEntity target, Direction targetSide,
+    protected IMEInventory<IAEFluidStack> getExternalApiAdapter(@NotNull Storage<FluidVariant> api,
             Runnable alertDevice) {
-        var handlerExtOpt = target
-                .getCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, targetSide);
-        if (handlerExtOpt.isPresent()) {
-            return new FluidHandlerAdapter(handlerExtOpt.orElse(null), alertDevice);
-        }
-
-        return null;
+        return new FluidHandlerAdapter(api, alertDevice);
     }
 
     @Override
-    protected int getHandlerHash(BlockEntity target, Direction targetSide) {
-        var fluidHandlerOpt = target
-                .getCapability(CapabilityFluidHandler.FLUID_HANDLER_CAPABILITY, targetSide);
-
-        if (fluidHandlerOpt.isPresent()) {
-            var itemHandler = fluidHandlerOpt.orElse(null);
-            return Objects.hash(target, itemHandler, itemHandler.getTanks());
-        } else {
-            return 0;
-        }
+    protected int getHandlerHash(@NotNull Storage<FluidVariant> api) {
+        return Objects.hash(api);
     }
 
     @Override
@@ -134,7 +121,7 @@ public class FluidStorageBusPart extends AbstractStorageBusPart<IAEFluidStack>
     }
 
     @Override
-    public IFluidHandler getFluidInventoryByName(final String name) {
+    public Storage<FluidVariant> getFluidInventoryByName(final String name) {
         if (name.equals("config")) {
             return this.config;
         }

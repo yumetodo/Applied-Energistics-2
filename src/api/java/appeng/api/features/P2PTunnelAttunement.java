@@ -32,9 +32,11 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.base.Preconditions;
 
+import net.fabricmc.fabric.api.lookup.v1.item.ItemApiLookup;
+import net.fabricmc.fabric.api.transfer.v1.context.ContainerItemContext;
+import net.fabricmc.fabric.api.transfer.v1.item.base.SingleStackStorage;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.ItemLike;
-import net.minecraftforge.common.capabilities.Capability;
 
 import appeng.api.config.TunnelType;
 
@@ -46,8 +48,13 @@ public final class P2PTunnelAttunement {
 
     static BiConsumer<ItemStack, TunnelType> addNewItemAttunement;
     static BiConsumer<String, TunnelType> addNewModAttunement;
-    static BiConsumer<Capability<?>, TunnelType> addNewCapAttunement;
+    static ApiAttunementAdder addNewApiAttunement;
     static Function<ItemStack, TunnelType> getTunnelTypeByItem;
+
+    @FunctionalInterface
+    interface ApiAttunementAdder {
+        <T> void add(ItemApiLookup<?, T> api, Function<ItemStack, T> contextProvider, TunnelType type);
+    }
 
     private P2PTunnelAttunement() {
     }
@@ -73,9 +80,33 @@ public final class P2PTunnelAttunement {
         addNewModAttunement.accept(modId, type);
     }
 
-    public synchronized static void addNewAttunement(@Nonnull Capability<?> cap, @Nonnull TunnelType type) {
-        Preconditions.checkState(addNewCapAttunement != null, "AE2 is not initialized yet");
-        addNewCapAttunement.accept(cap, type);
+    /**
+     * Attunement based on the ability of getting an API via Fabric API Lookup from the item.
+     */
+    public synchronized static <T> void addNewAttunement(@Nonnull ItemApiLookup<?, T> api,
+            @Nonnull Function<ItemStack, T> contextProvider, @Nonnull TunnelType type) {
+        Preconditions.checkState(addNewApiAttunement != null, "AE2 is not initialized yet");
+        addNewApiAttunement.add(api, contextProvider, type);
+    }
+
+    /**
+     * Attunement based on the ability of getting a storage container API via Fabric API Lookup from the item.
+     */
+    public synchronized static void addNewAttunement(@Nonnull ItemApiLookup<?, ContainerItemContext> api,
+            @Nonnull TunnelType type) {
+        addNewAttunement(api, stack -> ContainerItemContext.ofSingleSlot(new SingleStackStorage() {
+            ItemStack buffer = stack;
+
+            @Override
+            protected ItemStack getStack() {
+                return buffer;
+            }
+
+            @Override
+            protected void setStack(ItemStack stack) {
+                buffer = stack;
+            }
+        }), type);
     }
 
     /**

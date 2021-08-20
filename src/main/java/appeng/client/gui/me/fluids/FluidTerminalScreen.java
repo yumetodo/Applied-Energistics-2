@@ -27,6 +27,7 @@ import javax.annotation.Nullable;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 
+import net.fabricmc.fabric.api.transfer.v1.client.fluid.FluidVariantRendering;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.world.entity.player.Inventory;
@@ -67,7 +68,7 @@ public class FluidTerminalScreen extends MEMonitorableScreen<IAEFluidStack, Flui
     protected void renderGridInventoryEntry(PoseStack poseStack, int x, int y,
             GridInventoryEntry<IAEFluidStack> entry) {
         IAEFluidStack fs = entry.getStack();
-        FluidBlitter.create(fs.getFluidStack())
+        FluidBlitter.create(fs.getFluid())
                 .dest(x, y, 16, 16)
                 .blit(poseStack, getBlitOffset());
     }
@@ -82,11 +83,11 @@ public class FluidTerminalScreen extends MEMonitorableScreen<IAEFluidStack, Flui
         String modName = Platform.getModName(Platform.getModId(fluidStack));
 
         List<Component> list = new ArrayList<>();
-        list.add(fluidStack.getFluidStack().getDisplayName());
+        list.add(FluidVariantRendering.getName(fluidStack.getFluid()));
         list.add(new TextComponent(formattedAmount));
         list.add(new TextComponent(modName));
 
-        this.renderComponentToolTip(poseStack, list, x, y, this.font);
+        this.renderComponentTooltip(poseStack, list, x, y);
     }
 
     @Override

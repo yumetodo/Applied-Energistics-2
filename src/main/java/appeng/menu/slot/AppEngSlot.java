@@ -21,13 +21,13 @@ package appeng.menu.slot;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.items.IItemHandler;
 
 import appeng.client.gui.Icon;
@@ -88,7 +88,7 @@ public class AppEngSlot extends Slot {
             return ItemStack.EMPTY;
         }
 
-        if (this.itemHandler.getSlots() <= this.getSlotIndex()) {
+        if (this.itemHandler.getSlots() <= this.slot) {
             return ItemStack.EMPTY;
         }
 
@@ -151,13 +151,12 @@ public class AppEngSlot extends Slot {
         return this.itemHandler.extractItem(this.invSlot, amount, false);
     }
 
-    @Override
     public boolean isSameInventory(Slot other) {
         return other instanceof AppEngSlot && ((AppEngSlot) other).itemHandler == this.itemHandler;
     }
 
     @Override
-    @OnlyIn(Dist.CLIENT)
+    @Environment(EnvType.CLIENT)
     public boolean isActive() {
         return this.isSlotEnabled();
     }

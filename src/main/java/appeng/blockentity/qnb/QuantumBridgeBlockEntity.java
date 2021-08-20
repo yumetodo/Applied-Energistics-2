@@ -21,8 +21,6 @@ package appeng.blockentity.qnb;
 import java.io.IOException;
 import java.util.EnumSet;
 
-import javax.annotation.Nonnull;
-
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -32,9 +30,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.client.model.data.IModelData;
-import net.minecraftforge.client.model.data.ModelDataMap;
-import net.minecraftforge.client.model.data.ModelProperty;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.wrapper.EmptyHandler;
 
@@ -53,8 +48,6 @@ import appeng.util.inv.InvOperation;
 
 public class QuantumBridgeBlockEntity extends AENetworkInvBlockEntity
         implements IAEMultiBlock<QuantumCluster>, ServerTickingBlockEntity {
-
-    public static final ModelProperty<QnbFormedState> FORMED_STATE = new ModelProperty<>();
 
     private final byte corner = 16;
     private final AppEngInternalInventory internalInventory = new AppEngInternalInventory(this, 1, 1);
@@ -122,7 +115,7 @@ public class QuantumBridgeBlockEntity extends AENetworkInvBlockEntity
     }
 
     @Override
-    protected IItemHandler getItemHandlerForSide(Direction side) {
+    public IItemHandler getItemHandlerForSide(Direction side) {
         if (this.isCenter()) {
             return this.internalInventory;
         }
@@ -275,15 +268,9 @@ public class QuantumBridgeBlockEntity extends AENetworkInvBlockEntity
         return this.corner;
     }
 
-    @Nonnull
     @Override
-    public IModelData getModelData() {
-        // FIXME must trigger model data updates
-
-        return new ModelDataMap.Builder()
-                .withInitial(FORMED_STATE, new QnbFormedState(getAdjacentQuantumBridges(), isCorner(), isPowered()))
-                .build();
-
+    public QnbFormedState getRenderAttachmentData() {
+        return new QnbFormedState(getAdjacentQuantumBridges(), isCorner(), isPowered());
     }
 
 }

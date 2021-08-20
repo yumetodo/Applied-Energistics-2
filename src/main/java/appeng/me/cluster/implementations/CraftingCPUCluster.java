@@ -75,7 +75,7 @@ import appeng.me.cluster.MBCalculator;
 import appeng.me.helpers.MachineSource;
 import appeng.me.service.CraftingService;
 import appeng.menu.NullMenu;
-import appeng.util.Platform;
+import appeng.util.CraftingRemainders;
 import appeng.util.item.AEItemStack;
 
 public final class CraftingCPUCluster implements IAECluster, ICraftingCPU {
@@ -734,7 +734,7 @@ public final class CraftingCPUCluster implements IAECluster, ICraftingCPU {
                                 CraftingEvent.fireAutoCraftingEvent(getLevel(), details, ic);
 
                                 for (int x = 0; x < ic.getContainerSize(); x++) {
-                                    final ItemStack output = Platform.getContainerItem(ic.getItem(x));
+                                    final ItemStack output = CraftingRemainders.getRemainder(ic.getItem(x));
                                     if (!output.isEmpty()) {
                                         final IAEItemStack cItem = AEItemStack.fromItemStack(output);
                                         this.postChange(cItem, this.machineSrc);

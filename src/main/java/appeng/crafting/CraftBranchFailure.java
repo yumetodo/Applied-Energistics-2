@@ -18,6 +18,8 @@
 
 package appeng.crafting;
 
+import net.minecraft.core.Registry;
+
 import appeng.api.storage.data.IAEItemStack;
 
 public class CraftBranchFailure extends Exception {
@@ -27,7 +29,7 @@ public class CraftBranchFailure extends Exception {
     private final IAEItemStack missing;
 
     public CraftBranchFailure(final IAEItemStack what, final long howMany) {
-        super("Failed: " + what.getItem().getRegistryName() + " x " + howMany);
+        super("Failed: " + Registry.ITEM.getId(what.getItem()) + " x " + howMany);
         this.missing = what.copy();
         this.missing.setStackSize(howMany);
     }

@@ -18,9 +18,6 @@
 
 package appeng.core;
 
-import net.minecraftforge.fml.DistExecutor;
-import net.minecraftforge.fml.common.Mod;
-
 import appeng.api.AEApiInternal;
 import appeng.api.features.P2PTunnelAttunementInternal;
 import appeng.init.InitAdvancementTriggers;
@@ -32,14 +29,13 @@ import appeng.init.internal.InitPlayerRegistry;
 import appeng.init.internal.InitStorageChannels;
 
 /**
- * This class is just responsible for initializing the client or server-side mod class.
+ * This class is just responsible for initializing AE directly after Minecraft's own bootstrap, but before any mods are
+ * being loaded.
  */
-@Mod(AppEng.MOD_ID)
-public class AppEngBootstrap {
+public final class AppEngBootstrap {
     private volatile static boolean bootstrapped;
 
-    public AppEngBootstrap() {
-        DistExecutor.unsafeRunForDist(() -> AppEngClient::new, () -> AppEngServer::new);
+    private AppEngBootstrap() {
     }
 
     /**

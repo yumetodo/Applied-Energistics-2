@@ -30,8 +30,6 @@ import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.items.IItemHandler;
 
 import appeng.api.AEApi;
@@ -218,11 +216,6 @@ public class ItemInterfacePart extends BasicStatePart implements IStorageMonitor
         } else {
             return MODELS_OFF;
         }
-    }
-
-    @Override
-    public <T> LazyOptional<T> getCapability(Capability<T> capabilityClass) {
-        return this.duality.getCapability(capabilityClass, this.getSide());
     }
 
     @Override

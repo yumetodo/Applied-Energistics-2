@@ -27,6 +27,10 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
+import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
 import net.minecraft.CrashReportCategory;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -42,9 +46,6 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.items.IItemHandler;
 
 import appeng.api.AEApi;
@@ -255,7 +256,7 @@ public abstract class AEBasePart implements IPart, IActionHost, IUpgradeableHost
     }
 
     @Override
-    @OnlyIn(Dist.CLIENT)
+    @Environment(EnvType.CLIENT)
     public void animateTick(final Level level, final BlockPos pos, final Random r) {
 
     }
@@ -319,7 +320,7 @@ public abstract class AEBasePart implements IPart, IActionHost, IUpgradeableHost
         }
 
         if (this instanceof IConfigurableFluidInventory) {
-            final IFluidHandler tank = ((IConfigurableFluidInventory) this).getFluidInventoryByName("config");
+            final Storage<FluidVariant> tank = ((IConfigurableFluidInventory) this).getFluidInventoryByName("config");
             if (tank instanceof AEFluidInventory target) {
                 final AEFluidInventory tmp = new AEFluidInventory(null, target.getSlots());
                 tmp.readFromNBT(compound, "config");
@@ -360,7 +361,7 @@ public abstract class AEBasePart implements IPart, IActionHost, IUpgradeableHost
         }
 
         if (this instanceof IConfigurableFluidInventory) {
-            final IFluidHandler tank = ((IConfigurableFluidInventory) this).getFluidInventoryByName("config");
+            final Storage<FluidVariant> tank = ((IConfigurableFluidInventory) this).getFluidInventoryByName("config");
             ((AEFluidInventory) tank).writeToNBT(output, "config");
             if (this instanceof FluidLevelEmitterPart fluidLevelEmitterPart) {
                 output.putLong("reportingValue", fluidLevelEmitterPart.getReportingValue());

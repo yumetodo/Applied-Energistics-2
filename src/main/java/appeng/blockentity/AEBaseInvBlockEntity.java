@@ -29,9 +29,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.wrapper.EmptyHandler;
 
@@ -95,22 +92,9 @@ public abstract class AEBaseInvBlockEntity extends AEBaseBlockEntity implements 
     public abstract void onChangeInventory(IItemHandler inv, int slot, InvOperation mc, ItemStack removed,
             ItemStack added);
 
-    protected @Nonnull IItemHandler getItemHandlerForSide(@Nonnull Direction side) {
-        return this.getInternalInventory();
-    }
-
-    @SuppressWarnings("unchecked")
     @Nonnull
-    @Override
-    public <T> LazyOptional<T> getCapability(@Nonnull Capability<T> capability, Direction facing) {
-        if (capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY) {
-            if (facing == null) {
-                return (LazyOptional<T>) LazyOptional.of(this::getInternalInventory);
-            } else {
-                return (LazyOptional<T>) LazyOptional.of(() -> getItemHandlerForSide(facing));
-            }
-        }
-        return super.getCapability(capability, facing);
+    public IItemHandler getItemHandlerForSide(@Nonnull Direction side) {
+        return this.getInternalInventory();
     }
 
 }

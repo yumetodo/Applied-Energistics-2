@@ -67,7 +67,7 @@ public class GrinderBlockEntity extends AEBaseInvBlockEntity implements ICrankab
     }
 
     @Override
-    protected IItemHandler getItemHandlerForSide(Direction side) {
+    public IItemHandler getItemHandlerForSide(Direction side) {
         return this.invExt;
     }
 

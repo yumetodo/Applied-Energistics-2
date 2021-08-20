@@ -20,6 +20,8 @@ package appeng.parts.misc;
 
 import java.util.EnumSet;
 
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
+import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
@@ -29,9 +31,6 @@ import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.items.IItemHandler;
 
 import appeng.api.AEApi;
@@ -175,11 +174,6 @@ public class FluidInterfacePart extends BasicStatePart
     }
 
     @Override
-    public <T> LazyOptional<T> getCapability(Capability<T> capabilityClass) {
-        return this.duality.getCapability(capabilityClass, this.getSide());
-    }
-
-    @Override
     public int getInstalledUpgrades(Upgrades u) {
         return this.duality.getInstalledUpgrades(u);
     }
@@ -195,7 +189,7 @@ public class FluidInterfacePart extends BasicStatePart
     }
 
     @Override
-    public IFluidHandler getFluidInventoryByName(final String name) {
+    public Storage<FluidVariant> getFluidInventoryByName(final String name) {
         return this.duality.getFluidInventoryByName(name);
     }
 

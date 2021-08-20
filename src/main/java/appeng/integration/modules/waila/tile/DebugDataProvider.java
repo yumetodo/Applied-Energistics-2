@@ -1,8 +1,11 @@
 package appeng.integration.modules.waila.tile;
 
+import java.util.List;
+
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -10,9 +13,8 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
-import mcp.mobius.waila.api.BlockAccessor;
-import mcp.mobius.waila.api.ITooltip;
-import mcp.mobius.waila.api.config.IPluginConfig;
+import mcp.mobius.waila.api.IBlockAccessor;
+import mcp.mobius.waila.api.IPluginConfig;
 
 import appeng.api.networking.IManagedGridNode;
 import appeng.api.networking.ticking.IGridTickable;
@@ -33,16 +35,16 @@ public class DebugDataProvider extends BaseDataProvider implements IPartDataProv
     private static final String TAG_TICK_TIME = "debugTickTime";
 
     @Override
-    public void appendBodyTooltip(IPart part, CompoundTag partTag, ITooltip tooltip) {
+    public void appendBody(IPart part, CompoundTag partTag, List<Component> tooltip) {
         addToTooltip(partTag, tooltip);
     }
 
     @Override
-    public void appendTooltip(ITooltip tooltip, BlockAccessor accessor, IPluginConfig config) {
+    public void appendBody(List<Component> tooltip, IBlockAccessor accessor, IPluginConfig config) {
         addToTooltip(accessor.getServerData(), tooltip);
     }
 
-    private static void addToTooltip(CompoundTag tag, ITooltip tooltip) {
+    private static void addToTooltip(CompoundTag tag, List<Component> tooltip) {
         if (tag.contains(TAG_TICK_TIME, Tag.TAG_LONG_ARRAY)) {
             long[] tickTimes = tag.getLongArray(TAG_TICK_TIME);
             if (tickTimes.length == 3) {
@@ -74,8 +76,7 @@ public class DebugDataProvider extends BaseDataProvider implements IPartDataProv
     }
 
     @Override
-    public void appendServerData(CompoundTag tag, ServerPlayer player, Level level, BlockEntity blockEntity,
-            boolean showDetails) {
+    public void appendServerData(CompoundTag tag, ServerPlayer player, Level level, BlockEntity blockEntity) {
         if (isVisible(player) && blockEntity instanceof IGridConnectedBlockEntity gridConnected) {
             addServerData(tag, gridConnected.getMainNode());
         }

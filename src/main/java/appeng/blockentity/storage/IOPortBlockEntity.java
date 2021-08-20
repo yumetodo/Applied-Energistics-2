@@ -219,7 +219,7 @@ public class IOPortBlockEntity extends AENetworkInvBlockEntity
     }
 
     @Override
-    protected IItemHandler getItemHandlerForSide(final Direction facing) {
+    public IItemHandler getItemHandlerForSide(final Direction facing) {
         if (facing == this.getUp() || facing == this.getUp().getOpposite()) {
             return this.inputCellsExt;
         } else {

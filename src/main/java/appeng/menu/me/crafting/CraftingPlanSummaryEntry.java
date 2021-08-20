@@ -55,7 +55,7 @@ public class CraftingPlanSummaryEntry {
     }
 
     public void write(FriendlyByteBuf buffer) {
-        buffer.writeItemStack(item, true);
+        buffer.writeItem(item);
         buffer.writeVarLong(missingAmount);
         buffer.writeVarLong(storedAmount);
         buffer.writeVarLong(craftAmount);

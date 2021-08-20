@@ -26,6 +26,8 @@ import java.util.WeakHashMap;
 
 import com.google.common.base.Preconditions;
 
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -43,8 +45,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 
 import appeng.api.AEApi;
 import appeng.api.networking.crafting.ICraftingPatternDetails;
@@ -54,11 +54,12 @@ import appeng.core.AppEng;
 import appeng.core.definitions.AEItems;
 import appeng.core.localization.GuiText;
 import appeng.helpers.InvalidPatternHelper;
+import appeng.hooks.AEToolItem;
 import appeng.items.AEBaseItem;
 import appeng.util.InteractionUtil;
 import appeng.util.Platform;
 
-public class EncodedPatternItem extends AEBaseItem {
+public class EncodedPatternItem extends AEBaseItem implements AEToolItem {
 
     public static final String NBT_INGREDIENTS = "in";
     public static final String NBT_PRODUCTS = "out";
@@ -110,7 +111,7 @@ public class EncodedPatternItem extends AEBaseItem {
     }
 
     @Override
-    @OnlyIn(Dist.CLIENT)
+    @Environment(EnvType.CLIENT)
     public void appendHoverText(final ItemStack stack, final Level level, final List<Component> lines,
             final TooltipFlag advancedTooltips) {
         final ICraftingPatternDetails details = AEApi.crafting().decodePattern(stack, level);

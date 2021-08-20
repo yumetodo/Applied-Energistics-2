@@ -18,50 +18,46 @@
 
 package appeng.items.tools.powered.powersink;
 
-import javax.annotation.Nullable;
-
-import net.minecraft.core.Direction;
-import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.ICapabilityProvider;
-import net.minecraftforge.common.util.LazyOptional;
+import net.fabricmc.fabric.api.transfer.v1.context.ContainerItemContext;
+import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant;
+import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction;
 import net.minecraftforge.energy.IEnergyStorage;
 
 import appeng.api.config.Actionable;
 import appeng.api.config.PowerUnits;
 import appeng.api.implementations.items.IAEItemPowerStorage;
-import appeng.capabilities.Capabilities;
 
 /**
  * The capability provider to expose chargable items to other mods.
  */
-class PoweredItemCapabilities implements ICapabilityProvider, IEnergyStorage {
+public class PoweredItemCapabilities implements IEnergyStorage {
 
-    private final ItemStack is;
+    private final ContainerItemContext context;
 
-    private final IAEItemPowerStorage item;
-
-    PoweredItemCapabilities(ItemStack is, IAEItemPowerStorage item) {
-        this.is = is;
-        this.item = item;
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public <T> LazyOptional<T> getCapability(Capability<T> capability, @Nullable Direction facing) {
-        if (capability == Capabilities.FORGE_ENERGY) {
-            return (LazyOptional<T>) LazyOptional.of(() -> this);
-        }
-        return LazyOptional.empty();
+    public PoweredItemCapabilities(ContainerItemContext context) {
+        this.context = context;
     }
 
     @Override
     public int receiveEnergy(int maxReceive, boolean simulate) {
-        final double convertedOffer = PowerUnits.RF.convertTo(PowerUnits.AE, maxReceive);
-        final double overflow = this.item.injectAEPower(this.is, convertedOffer,
-                simulate ? Actionable.SIMULATE : Actionable.MODULATE);
+        var current = context.getItemVariant();
+        var inserted = 0;
+        if (current.getItem() instanceof IAEItemPowerStorage powerStorage) {
+            var is = current.toStack();
 
-        return maxReceive - (int) PowerUnits.AE.convertTo(PowerUnits.RF, overflow);
+            var convertedOffer = PowerUnits.TR.convertTo(PowerUnits.AE, maxReceive);
+            var overflow = powerStorage.injectAEPower(is, convertedOffer,
+                    simulate ? Actionable.SIMULATE : Actionable.MODULATE);
+            inserted = maxReceive - (int) PowerUnits.AE.convertTo(PowerUnits.TR, overflow);
+
+            if (!simulate && inserted > 0) {
+                try (var tx = Transaction.openOuter()) {
+                    context.exchange(ItemVariant.of(is), 1, tx);
+                }
+            }
+        }
+
+        return inserted;
     }
 
     @Override
@@ -71,12 +67,21 @@ class PoweredItemCapabilities implements ICapabilityProvider, IEnergyStorage {
 
     @Override
     public int getEnergyStored() {
-        return (int) PowerUnits.AE.convertTo(PowerUnits.RF, this.item.getAECurrentPower(this.is));
+        var current = context.getItemVariant();
+        if (current.getItem() instanceof IAEItemPowerStorage powerStorage) {
+            return (int) PowerUnits.AE.convertTo(PowerUnits.TR, powerStorage.getAECurrentPower(current.toStack()));
+        }
+
+        return 0;
     }
 
     @Override
     public int getMaxEnergyStored() {
-        return (int) PowerUnits.AE.convertTo(PowerUnits.RF, this.item.getAEMaxPower(this.is));
+        var current = context.getItemVariant();
+        if (current.getItem() instanceof IAEItemPowerStorage powerStorage) {
+            return (int) PowerUnits.AE.convertTo(PowerUnits.TR, powerStorage.getAEMaxPower(current.toStack()));
+        }
+        return 0;
     }
 
     @Override

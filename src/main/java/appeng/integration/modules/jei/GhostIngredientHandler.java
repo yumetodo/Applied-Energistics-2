@@ -137,7 +137,7 @@ class GhostIngredientHandler implements IGhostIngredientHandler<AEBaseScreen> {
 
         @Override
         public void accept(FluidStack ingredient) {
-            slot.setFluidStack(AEFluidStack.fromFluidStack(ingredient));
+            slot.setFluidStack(AEFluidStack.of(ingredient));
         }
     }
 

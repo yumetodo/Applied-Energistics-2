@@ -18,8 +18,6 @@
 
 package appeng.debug;
 
-import javax.annotation.Nullable;
-
 import com.google.common.math.IntMath;
 
 import net.minecraft.core.BlockPos;
@@ -28,13 +26,11 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.energy.IEnergyStorage;
 
 import appeng.blockentity.AEBaseBlockEntity;
 import appeng.blockentity.ServerTickingBlockEntity;
+import appeng.capabilities.Capabilities;
 
 public class EnergyGeneratorBlockEntity extends AEBaseBlockEntity implements ServerTickingBlockEntity, IEnergyStorage {
     /**
@@ -62,28 +58,14 @@ public class EnergyGeneratorBlockEntity extends AEBaseBlockEntity implements Ser
         final int energyToInsert = IntMath.pow(BASE_ENERGY, tier);
 
         for (Direction facing : Direction.values()) {
-            final BlockEntity te = this.getLevel().getBlockEntity(this.getBlockPos().relative(facing));
-            if (te == null) {
-                continue;
-            }
-            final LazyOptional<IEnergyStorage> cap = te.getCapability(CapabilityEnergy.ENERGY, facing.getOpposite());
-
-            cap.ifPresent(consumer -> {
+            IEnergyStorage consumer = Capabilities.ENERGY.find(getLevel(), getBlockPos().relative(facing),
+                    facing.getOpposite());
+            if (consumer != null) {
                 if (consumer.canReceive()) {
                     consumer.receiveEnergy(energyToInsert, false);
                 }
-            });
+            }
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    @Nullable
-    public <T> LazyOptional<T> getCapability(Capability<T> capability, @Nullable Direction facing) {
-        if (capability == CapabilityEnergy.ENERGY) {
-            return (LazyOptional<T>) LazyOptional.of(() -> this);
-        }
-        return super.getCapability(capability, facing);
     }
 
     @Override

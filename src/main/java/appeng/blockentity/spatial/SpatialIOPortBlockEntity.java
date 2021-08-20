@@ -159,7 +159,8 @@ public class SpatialIOPortBlockEntity extends AENetworkInvBlockEntity {
     }
 
     @Override
-    protected @Nonnull IItemHandler getItemHandlerForSide(@Nonnull Direction side) {
+    @Nonnull
+    public IItemHandler getItemHandlerForSide(@Nonnull Direction side) {
         return this.invExt;
     }
 

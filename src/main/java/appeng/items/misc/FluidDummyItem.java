@@ -18,16 +18,14 @@
 
 package appeng.items.misc;
 
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
 import net.minecraft.core.NonNullList;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.material.Fluids;
-import net.minecraftforge.fluids.FluidAttributes;
-import net.minecraftforge.fluids.FluidStack;
 
 import appeng.items.AEBaseItem;
+import appeng.util.Platform;
 
 /**
  * Dummy item to display the fluid Icon
@@ -44,28 +42,21 @@ public class FluidDummyItem extends AEBaseItem {
 
     @Override
     public String getDescriptionId(ItemStack stack) {
-        FluidStack fluidStack = this.getFluidStack(stack);
-        if (fluidStack.isEmpty()) {
-            fluidStack = new FluidStack(Fluids.WATER, FluidAttributes.BUCKET_VOLUME);
-        }
-        return fluidStack.getTranslationKey();
+        return Platform.getDescriptionId(this.getFluid(stack));
     }
 
-    public FluidStack getFluidStack(ItemStack is) {
+    public FluidVariant getFluid(ItemStack is) {
         if (is.hasTag()) {
-            CompoundTag tag = is.getTag();
-            return FluidStack.loadFluidStackFromNBT(tag);
+            return FluidVariant.fromNbt(is.getTag());
         }
-        return FluidStack.EMPTY;
+        return FluidVariant.blank();
     }
 
-    public void setFluidStack(ItemStack is, FluidStack fs) {
-        if (fs.isEmpty()) {
+    public void setFluid(ItemStack is, FluidVariant fluid) {
+        if (fluid.isBlank()) {
             is.setTag(null);
         } else {
-            CompoundTag tag = new CompoundTag();
-            fs.writeToNBT(tag);
-            is.setTag(tag);
+            is.setTag(fluid.toNbt());
         }
     }
 

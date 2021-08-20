@@ -354,7 +354,7 @@ public class InscriberBlockEntity extends AENetworkPowerBlockEntity
     }
 
     @Override
-    protected IItemHandler getItemHandlerForSide(@Nonnull Direction facing) {
+    public IItemHandler getItemHandlerForSide(@Nonnull Direction facing) {
         if (facing == this.getUp()) {
             return this.topItemHandlerExtern;
         } else if (facing == this.getUp().getOpposite()) {

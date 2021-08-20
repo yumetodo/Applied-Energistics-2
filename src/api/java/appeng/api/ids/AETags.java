@@ -23,8 +23,9 @@
 
 package appeng.api.ids;
 
+import net.fabricmc.fabric.api.tag.TagFactory;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BlockTags;
-import net.minecraft.tags.FluidTags;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.tags.Tag;
 import net.minecraft.world.item.Item;
@@ -62,8 +63,8 @@ public final class AETags {
     /**
      * Contains items that are blacklisted from being picked up by a fluid annihilation plane.
      */
-    public static final Tag.Named<Fluid> ANNIHILATION_PLANE_FLUID_BLACKLIST = FluidTags
-            .bind("appliedenergistics2:blacklisted/annihilation_plane");
+    public static final Tag.Named<Fluid> ANNIHILATION_PLANE_FLUID_BLACKLIST = TagFactory.FLUID
+            .create(new ResourceLocation("appliedenergistics2:blacklisted/annihilation_plane"));
 
     /**
      * Used by the quartz knife to decide which ingots can be crafted into nameplates, as well as the crafting recipe

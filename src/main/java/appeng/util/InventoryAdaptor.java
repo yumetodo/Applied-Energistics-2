@@ -22,11 +22,9 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.items.CapabilityItemHandler;
-import net.minecraftforge.items.IItemHandler;
 
 import appeng.api.config.FuzzyMode;
+import appeng.capabilities.Capabilities;
 import appeng.util.inv.AdaptorItemHandler;
 import appeng.util.inv.AdaptorItemHandlerPlayerInv;
 import appeng.util.inv.IInventoryDestination;
@@ -40,11 +38,11 @@ import appeng.util.inv.ItemSlot;
 public abstract class InventoryAdaptor implements Iterable<ItemSlot> {
     public static InventoryAdaptor getAdaptor(final BlockEntity te, final Direction d) {
         if (te != null) {
-            LazyOptional<IItemHandler> cap = te.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, d);
+            var ih = Capabilities.ITEM.find(te.getLevel(), te.getBlockPos(), te.getBlockState(), te, d);
 
             // Attempt getting an IItemHandler for the given side via caps
-            if (cap.isPresent()) {
-                return new AdaptorItemHandler(cap.orElseThrow(IllegalStateException::new));
+            if (ih != null) {
+                return new AdaptorItemHandler(ih);
             }
         }
         return null;

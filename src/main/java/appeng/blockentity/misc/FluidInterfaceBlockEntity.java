@@ -20,8 +20,8 @@ package appeng.blockentity.misc;
 
 import java.util.EnumSet;
 
-import javax.annotation.Nullable;
-
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
+import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -30,9 +30,6 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.items.IItemHandler;
 
 import appeng.api.AEApi;
@@ -121,15 +118,6 @@ public class FluidInterfaceBlockEntity extends AENetworkBlockEntity
     }
 
     @Override
-    public <T> LazyOptional<T> getCapability(Capability<T> capability, @Nullable Direction facing) {
-        LazyOptional<T> result = this.duality.getCapability(capability, facing);
-        if (result.isPresent()) {
-            return result;
-        }
-        return super.getCapability(capability, facing);
-    }
-
-    @Override
     public int getInstalledUpgrades(Upgrades u) {
         return this.duality.getInstalledUpgrades(u);
     }
@@ -145,7 +133,7 @@ public class FluidInterfaceBlockEntity extends AENetworkBlockEntity
     }
 
     @Override
-    public IFluidHandler getFluidInventoryByName(final String name) {
+    public Storage<FluidVariant> getFluidInventoryByName(final String name) {
         return this.duality.getFluidInventoryByName(name);
     }
 

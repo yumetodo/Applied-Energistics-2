@@ -35,7 +35,7 @@ import appeng.api.storage.data.IAEItemStack;
 import appeng.api.storage.data.IItemList;
 import appeng.me.cluster.implementations.CraftingCPUCluster;
 import appeng.menu.NullMenu;
-import appeng.util.Platform;
+import appeng.util.CraftingRemainders;
 
 public class CraftingTreeProcess {
 
@@ -92,7 +92,7 @@ public class CraftingTreeProcess {
                     this.limitQty = true;
                 }
 
-                if (g.getItem().hasContainerItem(g)) {
+                if (CraftingRemainders.hasRemainder(g)) {
                     this.limitQty = this.containerItems = true;
                 }
             }
@@ -173,7 +173,7 @@ public class CraftingTreeProcess {
 
             for (int x = 0; x < ic.getContainerSize(); x++) {
                 ItemStack is = ic.getItem(x);
-                is = Platform.getContainerItem(is);
+                is = CraftingRemainders.getRemainder(is);
 
                 final IAEItemStack o = StorageChannels.items()
                         .createStack(is);
@@ -189,7 +189,7 @@ public class CraftingTreeProcess {
                 final IAEItemStack stack = entry.getKey().request(inv, item.getStackSize() * i, src);
 
                 if (this.containerItems) {
-                    final ItemStack is = Platform.getContainerItem(stack.createItemStack());
+                    final ItemStack is = CraftingRemainders.getRemainder(stack.createItemStack());
                     final IAEItemStack o = StorageChannels.items()
                             .createStack(is);
                     if (o != null) {

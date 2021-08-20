@@ -21,11 +21,11 @@ package appeng.parts.p2p;
 import java.util.List;
 
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.energy.CapabilityEnergy;
 import net.minecraftforge.energy.IEnergyStorage;
 
 import appeng.api.config.PowerUnits;
 import appeng.api.parts.IPartModel;
+import appeng.capabilities.Capabilities;
 import appeng.items.parts.PartModels;
 
 public class FEP2PTunnelPart extends CapabilityP2PTunnelPart<FEP2PTunnelPart, IEnergyStorage> {
@@ -38,7 +38,7 @@ public class FEP2PTunnelPart extends CapabilityP2PTunnelPart<FEP2PTunnelPart, IE
     }
 
     public FEP2PTunnelPart(ItemStack is) {
-        super(is, CapabilityEnergy.ENERGY);
+        super(is, Capabilities.ENERGY);
         inputHandler = new InputEnergyStorage();
         outputHandler = new OutputEnergyStorage();
         emptyHandler = NULL_ENERGY_STORAGE;
@@ -80,7 +80,7 @@ public class FEP2PTunnelPart extends CapabilityP2PTunnelPart<FEP2PTunnelPart, IE
             }
 
             if (!simulate) {
-                FEP2PTunnelPart.this.queueTunnelDrain(PowerUnits.RF, total);
+                FEP2PTunnelPart.this.queueTunnelDrain(PowerUnits.TR, total);
             }
 
             return total;
@@ -130,7 +130,7 @@ public class FEP2PTunnelPart extends CapabilityP2PTunnelPart<FEP2PTunnelPart, IE
                 final int total = input.get().extractEnergy(maxExtract, simulate);
 
                 if (!simulate) {
-                    FEP2PTunnelPart.this.queueTunnelDrain(PowerUnits.RF, total);
+                    FEP2PTunnelPart.this.queueTunnelDrain(PowerUnits.TR, total);
                 }
 
                 return total;

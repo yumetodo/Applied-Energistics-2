@@ -29,25 +29,20 @@ import javax.annotation.Nullable;
 
 import io.netty.buffer.Unpooled;
 
+import net.fabricmc.fabric.api.block.entity.BlockEntityClientSerializable;
+import net.fabricmc.fabric.api.rendering.data.v1.RenderAttachmentBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.Connection;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextComponent;
-import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.AABB;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.client.model.data.IModelData;
-import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.items.IItemHandler;
 
 import appeng.api.implementations.blockentities.ISegmentedInventory;
@@ -67,7 +62,15 @@ import appeng.util.Platform;
 import appeng.util.SettingsFrom;
 import appeng.util.fluid.AEFluidInventory;
 
-public class AEBaseBlockEntity extends BlockEntity implements IOrientable, IBlockEntityDrops, ICustomNameObject {
+public class AEBaseBlockEntity extends BlockEntity implements IOrientable, IBlockEntityDrops, ICustomNameObject,
+        BlockEntityClientSerializable, RenderAttachmentBlockEntity {
+
+    static {
+        DeferredBlockEntityUnloader.register();
+    }
+
+    protected void onChunkUnloaded() {
+    }
 
     private static final ThreadLocal<WeakReference<AEBaseBlockEntity>> DROP_NO_ITEMS = new ThreadLocal<>();
     private static final Map<BlockEntityType<?>, Item> REPRESENTATIVE_ITEMS = new HashMap<>();
@@ -144,19 +147,6 @@ public class AEBaseBlockEntity extends BlockEntity implements IOrientable, IBloc
         return data;
     }
 
-    @Override
-    public ClientboundBlockEntityDataPacket getUpdatePacket() {
-        return new ClientboundBlockEntityDataPacket(this.worldPosition, 64, this.getUpdateTag());
-    }
-
-    @Override
-    public void onDataPacket(final Connection net, final ClientboundBlockEntityDataPacket pkt) {
-        // / pkt.actionType
-        if (pkt.getType() == 64) {
-            this.handleUpdateTag(pkt.getTag());
-        }
-    }
-
     /**
      * Deferred initialization when block entities actually start first ticking in a chunk. The block entity needs to
      * override {@link #clearRemoved()} and call <code>TickHandler.instance().addInit(this);</code> to make this work.
@@ -168,9 +158,7 @@ public class AEBaseBlockEntity extends BlockEntity implements IOrientable, IBloc
      * This builds a tag with the actual data that should be sent to the client for update syncs. If the block entity
      * doesn't need update syncs, it returns null.
      */
-    private CompoundTag writeUpdateData() {
-        final CompoundTag data = new CompoundTag();
-
+    private CompoundTag writeUpdateData(CompoundTag data) {
         final FriendlyByteBuf stream = new FriendlyByteBuf(Unpooled.buffer());
 
         try {
@@ -210,24 +198,15 @@ public class AEBaseBlockEntity extends BlockEntity implements IOrientable, IBloc
      * Handles block entities that are being sent to the client as part of a full chunk.
      */
     @Override
-    public CompoundTag getUpdateTag() {
-        final CompoundTag data = this.writeUpdateData();
-
-        if (data == null) {
-            return new CompoundTag();
-        }
-
-        data.putInt("x", this.worldPosition.getX());
-        data.putInt("y", this.worldPosition.getY());
-        data.putInt("z", this.worldPosition.getZ());
-        return data;
+    public CompoundTag toClientTag(CompoundTag tag) {
+        return this.writeUpdateData(tag);
     }
 
     /**
      * Handles block entities that are being received by the client as part of a full chunk.
      */
     @Override
-    public void handleUpdateTag(CompoundTag tag) {
+    public void fromClientTag(CompoundTag tag) {
         final FriendlyByteBuf stream = new FriendlyByteBuf(Unpooled.copiedBuffer(tag.getByteArray("X")));
 
         if (this.readUpdateData(stream)) {
@@ -260,8 +239,6 @@ public class AEBaseBlockEntity extends BlockEntity implements IOrientable, IBloc
         if (this.renderFragment > 0) {
             this.renderFragment |= 1;
         } else {
-            // Clearing the cached model-data is always harmless regardless of status
-            this.requestModelDataUpdate();
 
             // TODO: Optimize Network Load
             if (this.level != null && !this.isRemoved() && !notLoaded()) {
@@ -344,7 +321,7 @@ public class AEBaseBlockEntity extends BlockEntity implements IOrientable, IBloc
         }
 
         if (this instanceof IConfigurableFluidInventory) {
-            final IFluidHandler tank = ((IConfigurableFluidInventory) this).getFluidInventoryByName("config");
+            var tank = ((IConfigurableFluidInventory) this).getFluidInventoryByName("config");
             if (tank instanceof AEFluidInventory target) {
                 final AEFluidInventory tmp = new AEFluidInventory(null, target.getSlots());
                 tmp.readFromNBT(compound, "config");
@@ -404,7 +381,7 @@ public class AEBaseBlockEntity extends BlockEntity implements IOrientable, IBloc
             }
         }
         if (this instanceof IConfigurableFluidInventory) {
-            final IFluidHandler tank = ((IConfigurableFluidInventory) this).getFluidInventoryByName("config");
+            var tank = ((IConfigurableFluidInventory) this).getFluidInventoryByName("config");
             if (tank instanceof AEFluidInventory) {
                 ((AEFluidInventory) tank).writeToNBT(output, "config");
             }
@@ -469,20 +446,10 @@ public class AEBaseBlockEntity extends BlockEntity implements IOrientable, IBloc
         this.customName = name;
     }
 
-    @Nonnull
+    @Nullable
     @Override
-    public IModelData getModelData() {
+    public Object getRenderAttachmentData() {
         return new AEModelData(up, forward);
-    }
-
-    /**
-     * AE Block entities will generally confine themselves to rendering within the bounding block. Forge however would
-     * retrieve the collision box here, which is very expensive.
-     */
-    @OnlyIn(Dist.CLIENT)
-    @Override
-    public AABB getRenderBoundingBox() {
-        return new AABB(worldPosition, worldPosition.offset(1, 1, 1));
     }
 
 }

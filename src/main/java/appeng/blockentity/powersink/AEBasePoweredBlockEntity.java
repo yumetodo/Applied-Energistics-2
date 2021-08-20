@@ -21,7 +21,7 @@ package appeng.blockentity.powersink;
 import java.util.EnumSet;
 import java.util.Set;
 
-import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -30,8 +30,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.energy.IEnergyStorage;
 
 import appeng.api.config.AccessRestriction;
@@ -41,7 +39,6 @@ import appeng.api.config.PowerUnits;
 import appeng.api.networking.energy.IAEPowerStorage;
 import appeng.api.networking.events.GridPowerStorageStateChanged.PowerEventType;
 import appeng.blockentity.AEBaseInvBlockEntity;
-import appeng.capabilities.Capabilities;
 import appeng.helpers.ForgeEnergyAdapter;
 
 public abstract class AEBasePoweredBlockEntity extends AEBaseInvBlockEntity
@@ -58,12 +55,10 @@ public abstract class AEBasePoweredBlockEntity extends AEBaseInvBlockEntity
     private Set<Direction> internalPowerSides = ALL_SIDES;
     private final IEnergyStorage forgeEnergyAdapter;
     // Cache the optional to not continuously re-allocate it or the supplier
-    private final LazyOptional<IEnergyStorage> forgeEnergyAdapterOptional;
 
     public AEBasePoweredBlockEntity(BlockEntityType<?> blockEntityType, BlockPos pos, BlockState blockState) {
         super(blockEntityType, pos, blockState);
         this.forgeEnergyAdapter = new ForgeEnergyAdapter(this);
-        this.forgeEnergyAdapterOptional = LazyOptional.of(() -> forgeEnergyAdapter);
     }
 
     protected final Set<Direction> getPowerSides() {
@@ -210,27 +205,13 @@ public abstract class AEBasePoweredBlockEntity extends AEBaseInvBlockEntity
         this.internalPowerFlow = internalPowerFlow;
     }
 
-    @SuppressWarnings("unchecked")
-    @Nonnull
-    @Override
-    public <T> LazyOptional<T> getCapability(@Nonnull Capability<T> capability) {
-
-        if (capability == Capabilities.FORGE_ENERGY && this.getPowerSides().equals(ALL_SIDES)) {
-            return (LazyOptional<T>) this.forgeEnergyAdapterOptional;
+    @Nullable
+    public IEnergyStorage getEnergyStorage(Direction direction) {
+        if (getPowerSides().contains(direction)) {
+            return forgeEnergyAdapter;
+        } else {
+            return null;
         }
-
-        return super.getCapability(capability);
-
-    }
-
-    @SuppressWarnings("unchecked")
-    @Nonnull
-    @Override
-    public <T> LazyOptional<T> getCapability(@Nonnull Capability<T> capability, Direction facing) {
-        if (capability == Capabilities.FORGE_ENERGY && this.getPowerSides().contains(facing)) {
-            return (LazyOptional<T>) this.forgeEnergyAdapterOptional;
-        }
-        return super.getCapability(capability, facing);
     }
 
 }

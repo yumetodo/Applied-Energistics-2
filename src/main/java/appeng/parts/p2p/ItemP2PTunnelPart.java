@@ -23,12 +23,12 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemHandlerHelper;
 
 import appeng.api.config.PowerUnits;
 import appeng.api.parts.IPartModel;
+import appeng.capabilities.Capabilities;
 import appeng.items.parts.PartModels;
 
 public class ItemP2PTunnelPart extends CapabilityP2PTunnelPart<ItemP2PTunnelPart, IItemHandler> {
@@ -42,7 +42,7 @@ public class ItemP2PTunnelPart extends CapabilityP2PTunnelPart<ItemP2PTunnelPart
     }
 
     public ItemP2PTunnelPart(final ItemStack is) {
-        super(is, CapabilityItemHandler.ITEM_HANDLER_CAPABILITY);
+        super(is, Capabilities.ITEM);
         inputHandler = new InputItemHandler();
         outputHandler = new OutputItemHandler();
         emptyHandler = NULL_ITEM_HANDLER;
@@ -105,7 +105,7 @@ public class ItemP2PTunnelPart extends CapabilityP2PTunnelPart<ItemP2PTunnelPart
             }
 
             if (!simulate) {
-                ItemP2PTunnelPart.this.queueTunnelDrain(PowerUnits.RF, amount - remainder);
+                ItemP2PTunnelPart.this.queueTunnelDrain(PowerUnits.TR, amount - remainder);
             }
 
             if (remainder == stack.getCount()) {
@@ -166,7 +166,7 @@ public class ItemP2PTunnelPart extends CapabilityP2PTunnelPart<ItemP2PTunnelPart
                 ItemStack result = input.get().extractItem(slot, amount, simulate);
 
                 if (!simulate) {
-                    queueTunnelDrain(PowerUnits.RF, result.getCount());
+                    queueTunnelDrain(PowerUnits.TR, result.getCount());
                 }
 
                 return result;

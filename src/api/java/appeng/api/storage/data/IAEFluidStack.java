@@ -23,8 +23,7 @@
 
 package appeng.api.storage.data;
 
-import net.minecraft.world.level.material.Fluid;
-import net.minecraftforge.fluids.FluidStack;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
 
 /**
  * An alternate version of FluidStack for AE to keep tabs on things easier, and to support larger storage. stackSizes of
@@ -38,14 +37,6 @@ import net.minecraftforge.fluids.FluidStack;
  * )
  */
 public interface IAEFluidStack extends IAEStack<IAEFluidStack> {
-
-    /**
-     * creates a standard Forge FluidStack for the fluid.
-     *
-     * @return new FluidStack
-     */
-    FluidStack getFluidStack();
-
     /**
      * Combines two IAEItemStacks via addition.
      *
@@ -67,5 +58,5 @@ public interface IAEFluidStack extends IAEStack<IAEFluidStack> {
      *
      * @return fluid definition
      */
-    Fluid getFluid();
+    FluidVariant getFluid();
 }

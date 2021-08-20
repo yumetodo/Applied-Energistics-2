@@ -20,6 +20,8 @@ package appeng.items.storage;
 
 import java.util.List;
 
+import net.fabricmc.api.EnvType;
+import net.fabricmc.api.Environment;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -32,8 +34,6 @@ import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.ItemLike;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.items.IItemHandler;
 
 import appeng.api.AEApi;
@@ -45,6 +45,8 @@ import appeng.api.storage.StorageCells;
 import appeng.api.storage.data.IAEStack;
 import appeng.core.AEConfig;
 import appeng.core.definitions.AEItems;
+import appeng.hooks.AEToolItem;
+import appeng.hooks.IDisassemblyRemainder;
 import appeng.items.AEBaseItem;
 import appeng.items.contents.CellConfig;
 import appeng.items.contents.CellUpgrades;
@@ -56,7 +58,8 @@ import appeng.util.InventoryAdaptor;
  * @version rv6 - 2018-01-17
  * @since rv6 2018-01-17
  */
-public abstract class AbstractStorageCell<T extends IAEStack<T>> extends AEBaseItem implements IStorageCell<T> {
+public abstract class AbstractStorageCell<T extends IAEStack<T>> extends AEBaseItem
+        implements IStorageCell<T>, AEToolItem, IDisassemblyRemainder {
     /**
      * This can be retrieved when disassembling the storage cell.
      */
@@ -69,7 +72,7 @@ public abstract class AbstractStorageCell<T extends IAEStack<T>> extends AEBaseI
         this.coreItem = coreItem;
     }
 
-    @OnlyIn(Dist.CLIENT)
+    @Environment(EnvType.CLIENT)
     @Override
     public void appendHoverText(final ItemStack stack, final Level level, final List<Component> lines,
             final TooltipFlag advancedTooltips) {
@@ -197,13 +200,12 @@ public abstract class AbstractStorageCell<T extends IAEStack<T>> extends AEBaseI
     }
 
     @Override
-    public ItemStack getContainerItem(final ItemStack itemStack) {
-        return AEItems.EMPTY_STORAGE_CELL.stack();
-    }
-
-    @Override
-    public boolean hasContainerItem(final ItemStack stack) {
-        return AEConfig.instance().isDisassemblyCraftingEnabled();
+    public ItemStack getDisassemblyRemainder(ItemStack input) {
+        if (AEConfig.instance().isDisassemblyCraftingEnabled()) {
+            return AEItems.EMPTY_STORAGE_CELL.stack();
+        } else {
+            return ItemStack.EMPTY;
+        }
     }
 
 }

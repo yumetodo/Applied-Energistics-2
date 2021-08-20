@@ -23,18 +23,21 @@
 
 package appeng.api.features;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 
-import net.minecraft.core.Direction;
+import net.fabricmc.fabric.api.lookup.v1.item.ItemApiLookup;
+import net.minecraft.core.Registry;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.common.capabilities.Capability;
 
 import appeng.api.config.TunnelType;
 
@@ -46,12 +49,12 @@ public final class P2PTunnelAttunementInternal {
 
     private static final Map<ItemStack, TunnelType> tunnels = new HashMap<>(INITIAL_CAPACITY);
     private static final Map<String, TunnelType> modIdTunnels = new HashMap<>(INITIAL_CAPACITY);
-    private static final Map<Capability<?>, TunnelType> capTunnels = new HashMap<>(INITIAL_CAPACITY);
+    private static final List<ApiAttunement<?>> apiAttunements = new ArrayList<>();
 
     public static void init() {
         P2PTunnelAttunement.addNewItemAttunement = P2PTunnelAttunementInternal::addNewItemAttunement;
         P2PTunnelAttunement.addNewModAttunement = P2PTunnelAttunementInternal::addNewModAttunement;
-        P2PTunnelAttunement.addNewCapAttunement = P2PTunnelAttunementInternal::addNewCapAttunement;
+        P2PTunnelAttunement.addNewApiAttunement = P2PTunnelAttunementInternal::addNewApiAttunement;
         P2PTunnelAttunement.getTunnelTypeByItem = P2PTunnelAttunementInternal::getTunnelTypeByItem;
     }
 
@@ -68,10 +71,12 @@ public final class P2PTunnelAttunementInternal {
         modIdTunnels.put(modId, type);
     }
 
-    private static void addNewCapAttunement(@Nonnull final Capability<?> cap, @Nullable final TunnelType type) {
-        Objects.requireNonNull(cap, "cap");
+    private static <T> void addNewApiAttunement(ItemApiLookup<?, T> api, Function<ItemStack, T> contextProvider,
+            TunnelType type) {
+        Objects.requireNonNull(api, "api");
+        Objects.requireNonNull(contextProvider, "contextProvider");
         Objects.requireNonNull(type, "type");
-        capTunnels.put(cap, type);
+        apiAttunements.add(new ApiAttunement<>(api, contextProvider, type));
     }
 
     @Nullable
@@ -90,19 +95,17 @@ public final class P2PTunnelAttunementInternal {
                 }
             }
 
-            // Next, check if the Item you're holding supports any registered capability
-            for (Direction face : Direction.values()) {
-                for (Map.Entry<Capability<?>, TunnelType> entry : capTunnels.entrySet()) {
-                    if (trigger.getCapability(entry.getKey(), face).isPresent()) {
-                        return entry.getValue();
-                    }
+            // Check provided APIs
+            for (var apiAttunement : apiAttunements) {
+                if (apiAttunement.hasApi(trigger)) {
+                    return apiAttunement.type();
                 }
             }
 
             // Use the mod id as last option.
             for (final Map.Entry<String, TunnelType> entry : modIdTunnels.entrySet()) {
-                if (trigger.getItem().getRegistryName() != null
-                        && trigger.getItem().getRegistryName().getNamespace().equals(entry.getKey())) {
+                var id = Registry.ITEM.getKey(trigger.getItem());
+                if (id.getNamespace().equals(entry.getKey())) {
                     return entry.getValue();
                 }
             }
@@ -110,4 +113,14 @@ public final class P2PTunnelAttunementInternal {
 
         return null;
     }
+
+    record ApiAttunement<T> (
+            ItemApiLookup<?, T> api,
+            Function<ItemStack, T> contextProvider,
+            TunnelType type) {
+        public boolean hasApi(ItemStack stack) {
+            return api.find(stack, contextProvider.apply(stack)) != null;
+        }
+    }
+
 }
