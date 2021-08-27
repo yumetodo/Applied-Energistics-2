@@ -19,7 +19,6 @@
 buildscript {
     repositories {
         mavenLocal()
-        jcenter()
         mavenCentral()
         maven {
             name = "forge"
