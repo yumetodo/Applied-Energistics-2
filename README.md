@@ -1,4 +1,4 @@
-[![Travis](https://img.shields.io/travis/AppliedEnergistics/Applied-Energistics-2.svg?maxAge=2592000&style=flat-square)](https://travis-ci.org/AppliedEnergistics/Applied-Energistics-2)
+[![Java CI with Gradle](https://github.com/yumetodo/Applied-Energistics-2/actions/workflows/build.yml/badge.svg)](https://github.com/yumetodo/Applied-Energistics-2/actions/workflows/build.yml)
 [![Latest Release](https://img.shields.io/github/release/AppliedEnergistics/Applied-Energistics-2.svg?label=Latest%20Release&style=flat-square)](https://github.com/AppliedEnergistics/Applied-Energistics-2/releases)
 
 # Applied Energistics 2
