@@ -118,3 +118,25 @@ processResources
     // move access transformer to META-INF
     rename '(.+_at.cfg)', 'META-INF/$1'
 }
+
+apply plugin: 'maven-publish'
+
+publishing {
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = 'https://maven.pkg.github.com/yumetodo/Applied-Energistics-2'
+            credentials {
+                username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+                password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+            }
+        }
+    }
+
+    publications {
+        gpr(MavenPublication) {
+            artifactId = archivesBaseName
+            from(components.java)
+        }
+    }
+}
