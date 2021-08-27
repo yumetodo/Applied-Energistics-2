@@ -30,6 +30,7 @@ import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.Set;
 
+import appeng.core.AELog;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Sets;
@@ -106,6 +107,13 @@ public class EnergyGridCache implements IEnergyGrid
 	private boolean hasPower = true;
 	private long ticksSinceHasPowerChange = 900;
 
+	/**
+	 * used by workaround
+	 */
+	private boolean isModifiedProviders = false;
+	private final Set<IAEPowerStorage> processedProviders = new HashSet<>();
+
+
 	private PathGridCache pgc;
 	private double lastStoredPower = -1;
 
@@ -149,6 +157,7 @@ public class EnergyGridCache implements IEnergyGrid
 					if( ev.storage.getPowerFlow() != AccessRestriction.WRITE )
 					{
 						this.providers.add( ev.storage );
+						isModifiedProviders = true;
 					}
 					break;
 				case REQUEST_POWER:
@@ -301,11 +310,15 @@ public class EnergyGridCache implements IEnergyGrid
 	{
 		double extractedPower = 0;
 
-		final Iterator<IAEPowerStorage> it = this.providers.iterator();
+		Iterator<IAEPowerStorage> it = this.providers.iterator();
 
 		while( extractedPower < amt && it.hasNext() )
 		{
+			// at the start no provider is modified through other methods
+			isModifiedProviders = false;
 			final IAEPowerStorage node = it.next();
+			// if a node has been processed, skip it
+			if(processedProviders.contains(node)) continue;
 
 			final double req = amt - extractedPower;
 			final double newPower = node.extractAEPower( req, mode, PowerMultiplier.ONE );
@@ -313,9 +326,25 @@ public class EnergyGridCache implements IEnergyGrid
 
 			if( newPower < req && mode == Actionable.MODULATE )
 			{
-				it.remove();
+				if(isModifiedProviders){
+					// providers has been modified
+					// remove the node from providers immediately
+					this.providers.remove(node);
+					// restart iteration
+					it = this.providers.iterator();
+					// print a log
+					AELog.warn("ConcurrentModificationException workaround triggered!");
+				}else{
+					// do things normally
+					it.remove();
+				}
+			}else{
+				// added processed node to a list to avoid duplication
+				processedProviders.add(node);
 			}
 		}
+		// clear list
+		processedProviders.clear();
 
 		final double result = Math.min( extractedPower, amt );
 
@@ -507,6 +536,7 @@ public class EnergyGridCache implements IEnergyGrid
 				}
 
 				this.providers.remove( ps );
+				isModifiedProviders=true;
 				this.requesters.remove( ps );
 			}
 		}
@@ -555,6 +585,7 @@ public class EnergyGridCache implements IEnergyGrid
 				{
 					this.globalAvailablePower += current;
 					this.providers.add( ps );
+					isModifiedProviders=true;
 				}
 
 				if( current < max && ps.getPowerFlow() != AccessRestriction.READ )
